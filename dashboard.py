@@ -8,9 +8,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
+# =========================================================
+# PAGE SETUP
+# =========================================================
 
 st.set_page_config(
     page_title="MedRisk AI",
@@ -20,100 +20,58 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# =========================================================
+# CUSTOM STYLE
+# =========================================================
 
 st.markdown("""
 <style>
 
-    /* Main background */
-    .stApp {
-        background-color: #f7f9fc;
-    }
+.main {
+    background-color: #f7f9fc;
+}
 
-    /* Main title */
-    .main-title {
-        font-size: 42px;
-        font-weight: 700;
-        color: #12355b;
-        margin-bottom: 5px;
-    }
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
 
-    .subtitle {
-        font-size: 18px;
-        color: #5f6b7a;
-        margin-bottom: 25px;
-    }
+h1 {
+    color: #12355b !important;
+}
 
-    /* Cards */
-    .card {
-        background-color: white;
-        padding: 25px;
-        border-radius: 15px;
-        border: 1px solid #e5e9f0;
-        box-shadow: 0px 3px 12px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
-    }
+h2, h3 {
+    color: #12355b !important;
+}
 
-    .card-title {
-        font-size: 20px;
-        font-weight: 600;
-        color: #12355b;
-        margin-bottom: 8px;
-    }
+[data-testid="stMetric"] {
+    background-color: white;
+    border: 1px solid #e3e8ef;
+    padding: 18px;
+    border-radius: 12px;
+}
 
-    /* Hero */
-    .hero {
-        background: linear-gradient(135deg, #eaf4ff, #ffffff);
-        padding: 40px;
-        border-radius: 20px;
-        border: 1px solid #dcecff;
-        margin-bottom: 30px;
-    }
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stSelectbox"] div,
+[data-testid="stDateInput"] input {
+    border-radius: 8px;
+}
 
-    .hero h1 {
-        color: #12355b;
-        font-size: 40px;
-    }
-
-    .hero p {
-        color: #536273;
-        font-size: 18px;
-        line-height: 1.6;
-    }
-
-    /* Risk box */
-    .risk-box {
-        background-color: white;
-        padding: 30px;
-        border-radius: 18px;
-        border: 1px solid #e5e9f0;
-        text-align: center;
-        margin: 15px 0;
-    }
-
-    .risk-number {
-        font-size: 42px;
-        font-weight: 700;
-        color: #12355b;
-    }
-
-    /* Footer */
-    .footer {
-        text-align: center;
-        color: #7b8794;
-        font-size: 13px;
-        padding: 30px 0;
-    }
+.footer {
+    text-align: center;
+    color: #7a869a;
+    padding-top: 40px;
+    font-size: 13px;
+}
 
 </style>
 """, unsafe_allow_html=True)
 
 
-# ============================================================
-# FIRST RUN SETUP
-# ============================================================
+# =========================================================
+# FIRST TIME SETUP
+# =========================================================
 
 os.makedirs("data", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
@@ -125,10 +83,10 @@ REQUIRED_FILES = [
     "outputs/complaint_matches.csv",
 ]
 
-if not all(os.path.exists(f) for f in REQUIRED_FILES):
+if not all(os.path.exists(file) for file in REQUIRED_FILES):
 
     with st.spinner(
-        "Setting up the risk prediction system for the first time..."
+        "Setting up MedRisk AI for the first time..."
     ):
 
         for script in [
@@ -145,17 +103,16 @@ if not all(os.path.exists(f) for f in REQUIRED_FILES):
             )
 
             if result.returncode != 0:
-
-                st.error(f"Setup failed while running {script}")
-
+                st.error(
+                    f"Setup failed while running {script}"
+                )
                 st.code(result.stderr)
-
                 st.stop()
 
 
-# ============================================================
+# =========================================================
 # LOAD DATA
-# ============================================================
+# =========================================================
 
 @st.cache_data
 def load_data():
@@ -173,7 +130,6 @@ def load_data():
         emerging = pd.read_csv(
             "outputs/emerging_risk_clusters.csv"
         )
-
     except FileNotFoundError:
         emerging = pd.DataFrame()
 
@@ -187,11 +143,11 @@ products = sorted(
 )
 
 
-# ============================================================
-# SIDEBAR NAVIGATION
-# ============================================================
+# =========================================================
+# SIDEBAR
+# =========================================================
 
-st.sidebar.markdown("## 🏥 MedRisk AI")
+st.sidebar.title("🏥 MedRisk AI")
 
 st.sidebar.caption(
     "Medical Device Risk Intelligence"
@@ -217,135 +173,107 @@ st.sidebar.caption(
 )
 
 
-# ============================================================
-# HOME PAGE
-# ============================================================
+# =========================================================
+# HOME
+# =========================================================
 
 if page == "🏠 Home":
 
-    st.markdown("""
-    <div class="hero">
+    st.title("MedRisk AI")
 
-        <div class="main-title">
-            MedRisk AI
-        </div>
+    st.subheader(
+        "Medical Device Risk Intelligence Platform"
+    )
 
-        <div class="subtitle">
-            Medical Device Risk Intelligence Platform
-        </div>
+    st.write(
+        "Monitor medical device complaints, analyse risk "
+        "trends and identify potential emerging safety "
+        "concerns using AI-assisted analysis."
+    )
 
-        <p>
-            Monitor medical device complaints, analyse risk trends,
-            and identify potential emerging safety concerns using
-            AI-assisted analysis.
-        </p>
+    st.write("")
 
-    </div>
-    """, unsafe_allow_html=True)
+    # Main button
+    if st.button(
+        "📝 Start Risk Assessment",
+        type="primary",
+        use_container_width=True
+    ):
+        st.info(
+            "Select 'Report Complaint' from the sidebar "
+            "to enter a device complaint."
+        )
 
-    st.subheader("How it works")
+    st.divider()
+
+    st.subheader("How MedRisk AI Works")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-
-        st.markdown("""
-        <div class="card">
-
-        <div class="card-title">
-        1️⃣ Collect
-        </div>
-
-        Record medical device complaints and
-        their severity.
-
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 1️⃣ Collect")
+        st.write(
+            "Record medical device complaints, "
+            "dates and severity."
+        )
 
     with col2:
-
-        st.markdown("""
-        <div class="card">
-
-        <div class="card-title">
-        2️⃣ Analyse
-        </div>
-
-        Analyse complaint volume, severity
-        and historical trends.
-
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 2️⃣ Analyse")
+        st.write(
+            "Analyse complaint volume, severity "
+            "and historical trends."
+        )
 
     with col3:
-
-        st.markdown("""
-        <div class="card">
-
-        <div class="card-title">
-        3️⃣ Predict
-        </div>
-
-        Use machine-learning based risk
-        prediction to identify potential
-        future risk.
-
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 3️⃣ Predict")
+        st.write(
+            "Use machine-learning based analysis "
+            "to estimate device risk."
+        )
 
     st.divider()
 
-    st.subheader("Current System")
+    st.subheader("Current System Overview")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.metric(
-            "Devices monitored",
+            "Devices Monitored",
             len(products)
         )
 
     with col2:
         st.metric(
-            "Complaint records",
+            "Complaint Records",
             len(matches)
         )
 
     with col3:
         st.metric(
-            "Risk records",
+            "Risk Records",
             len(risk_scores)
         )
 
-    st.divider()
-
     st.info(
-        "💡 Start by selecting 'Report Complaint' from the sidebar."
+        "💡 Use the sidebar to report a complaint or "
+        "explore the device risk dashboard."
     )
 
 
-# ============================================================
-# REPORT COMPLAINT PAGE
-# ============================================================
+# =========================================================
+# REPORT COMPLAINT
+# =========================================================
 
 elif page == "📝 Report Complaint":
 
-    st.markdown(
-        '<div class="main-title">Report a Device Complaint</div>',
-        unsafe_allow_html=True
+    st.title("Report a Device Complaint")
+
+    st.write(
+        "Enter information about a medical device complaint."
     )
 
-    st.markdown(
-        '<div class="subtitle">'
-        'Enter information about a medical device complaint.'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="card">',
-        unsafe_allow_html=True
-    )
+    st.divider()
 
     st.subheader("Device Information")
 
@@ -365,7 +293,7 @@ elif page == "📝 Report Complaint":
         placeholder=(
             "Example: Device stopped working during operation..."
         ),
-        height=140
+        height=150
     )
 
     severity = st.slider(
@@ -375,7 +303,7 @@ elif page == "📝 Report Complaint":
         value=3
     )
 
-    severity_text = {
+    severity_names = {
         1: "Very Low",
         2: "Low",
         3: "Moderate",
@@ -384,20 +312,24 @@ elif page == "📝 Report Complaint":
     }
 
     st.caption(
-        f"Selected severity: **{severity_text[severity]}**"
+        f"Selected severity: "
+        f"**{severity_names[severity]} ({severity}/5)**"
     )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.write("")
 
-    if st.button(
+    analyse = st.button(
         "🔍 Analyse Complaint",
+        type="primary",
         use_container_width=True
-    ):
+    )
+
+    if analyse:
 
         if not complaint_text.strip():
 
             st.warning(
-                "Please enter a complaint description."
+                "Please enter a complaint description first."
             )
 
         else:
@@ -410,10 +342,12 @@ elif page == "📝 Report Complaint":
             }
 
             st.success(
-                "Complaint information captured successfully."
+                "Complaint captured successfully."
             )
 
-            st.markdown("### Complaint Summary")
+            st.divider()
+
+            st.subheader("Complaint Summary")
 
             col1, col2, col3 = st.columns(3)
 
@@ -436,29 +370,21 @@ elif page == "📝 Report Complaint":
                 )
 
             st.info(
-                "The complaint has been captured. "
-                "The next development step will connect this "
-                "new complaint directly to the machine-learning "
-                "risk prediction pipeline."
+                "Next step: connect this complaint directly "
+                "to the machine-learning prediction pipeline."
             )
 
 
-# ============================================================
+# =========================================================
 # RISK DASHBOARD
-# ============================================================
+# =========================================================
 
 elif page == "📊 Risk Dashboard":
 
-    st.markdown(
-        '<div class="main-title">Risk Dashboard</div>',
-        unsafe_allow_html=True
-    )
+    st.title("Device Risk Dashboard")
 
-    st.markdown(
-        '<div class="subtitle">'
-        'Monitor device-level complaint trends and predicted risk.'
-        '</div>',
-        unsafe_allow_html=True
+    st.write(
+        "Monitor complaint trends and predicted device risk."
     )
 
     selected_product = st.selectbox(
@@ -466,29 +392,23 @@ elif page == "📊 Risk Dashboard":
         products
     )
 
-    st.divider()
-
     sub = risk_scores[
         risk_scores["product_id"] == selected_product
     ].sort_values("date")
 
     latest = sub.iloc[-1]
 
-    # --------------------------------------------------------
-    # TOP METRICS
-    # --------------------------------------------------------
+    st.divider()
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-
         st.metric(
             "Current Risk Score",
             f"{latest['risk_score']:.2f}"
         )
 
     with col2:
-
         st.metric(
             "Complaints",
             int(
@@ -499,7 +419,6 @@ elif page == "📊 Risk Dashboard":
         )
 
     with col3:
-
         st.metric(
             "High Severity",
             int(
@@ -508,12 +427,6 @@ elif page == "📊 Risk Dashboard":
                 .sum()
             )
         )
-
-    st.divider()
-
-    # --------------------------------------------------------
-    # RISK LEVEL
-    # --------------------------------------------------------
 
     risk_score = float(
         latest["risk_score"]
@@ -526,30 +439,25 @@ elif page == "📊 Risk Dashboard":
     else:
         risk_level = "LOW"
 
-    st.markdown(
-        f"""
-        <div class="risk-box">
+    st.divider()
 
-            <div style="font-size:18px;color:#667085;">
-                Current predicted risk
-            </div>
+    if risk_level == "HIGH":
+        st.error(
+            f"🔴 Current predicted risk: **{risk_level}** "
+            f"({risk_score:.2f})"
+        )
 
-            <div class="risk-number">
-                {risk_score:.2f}
-            </div>
+    elif risk_level == "MODERATE":
+        st.warning(
+            f"🟠 Current predicted risk: **{risk_level}** "
+            f"({risk_score:.2f})"
+        )
 
-            <div style="font-size:24px;font-weight:600;">
-                {risk_level} RISK
-            </div>
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # --------------------------------------------------------
-    # GRAPH
-    # --------------------------------------------------------
+    else:
+        st.success(
+            f"🟢 Current predicted risk: **{risk_level}** "
+            f"({risk_score:.2f})"
+        )
 
     st.subheader(
         "Risk Score vs Complaint Volume"
@@ -562,12 +470,11 @@ elif page == "📊 Risk Dashboard":
     ax1.plot(
         sub["date"],
         sub["risk_score"],
-        linewidth=2,
-        label="Predicted risk"
+        linewidth=2
     )
 
     ax1.set_ylabel(
-        "Risk score (0–1)"
+        "Risk Score (0–1)"
     )
 
     ax1.set_ylim(
@@ -580,12 +487,11 @@ elif page == "📊 Risk Dashboard":
     ax2.bar(
         sub["date"],
         sub["complaint_count"],
-        alpha=0.25,
-        width=1
+        alpha=0.25
     )
 
     ax2.set_ylabel(
-        "Daily complaints"
+        "Daily Complaints"
     )
 
     fig.tight_layout()
@@ -593,10 +499,6 @@ elif page == "📊 Risk Dashboard":
     st.pyplot(fig)
 
     st.divider()
-
-    # --------------------------------------------------------
-    # COMPLAINT MATCHING
-    # --------------------------------------------------------
 
     st.subheader(
         "Complaint → Known Risk Matching"
@@ -617,21 +519,19 @@ elif page == "📊 Risk Dashboard":
     col1, col2 = st.columns(2)
 
     with col1:
-
         st.metric(
             "Matched to Known Risk",
             matched_count
         )
 
     with col2:
-
         st.metric(
             "Unmatched Complaints",
             unmatched_count
         )
 
     with st.expander(
-        "View complaint matching details"
+        "View Matching Details"
     ):
 
         matched_data = prod_matches[
@@ -663,23 +563,17 @@ elif page == "📊 Risk Dashboard":
             )
 
 
-# ============================================================
+# =========================================================
 # EMERGING RISKS
-# ============================================================
+# =========================================================
 
 elif page == "⚠️ Emerging Risks":
 
-    st.markdown(
-        '<div class="main-title">Emerging Risks</div>',
-        unsafe_allow_html=True
-    )
+    st.title("Emerging Risks")
 
-    st.markdown(
-        '<div class="subtitle">'
-        'Potential undocumented failure patterns identified '
-        'from unmatched complaints.'
-        '</div>',
-        unsafe_allow_html=True
+    st.write(
+        "Potential undocumented failure patterns identified "
+        "from unmatched complaints."
     )
 
     selected_product = st.selectbox(
@@ -705,7 +599,7 @@ elif page == "⚠️ Emerging Risks":
 
             st.success(
                 "No emerging risk clusters detected "
-                "for this device with the current threshold."
+                "for this device."
             )
 
         else:
@@ -718,76 +612,77 @@ elif page == "⚠️ Emerging Risks":
 
                 st.warning(
                     f"**{row['num_complaints']} similar "
-                    f"unmatched complaints** detected\n\n"
+                    f"unmatched complaints detected**"
+                )
+
+                st.write(
                     f"Example complaint: "
-                    f"\"{row['sample_text']}\""
+                    f"“{row['sample_text']}”"
                 )
 
                 st.caption(
                     f"Cluster ID: {row['cluster_id']}"
                 )
 
+                st.divider()
 
-# ============================================================
-# ABOUT PAGE
-# ============================================================
+
+# =========================================================
+# ABOUT
+# =========================================================
 
 elif page == "ℹ️ About":
 
-    st.markdown(
-        '<div class="main-title">About MedRisk AI</div>',
-        unsafe_allow_html=True
+    st.title("About MedRisk AI")
+
+    st.subheader(
+        "Medical Device Risk Intelligence"
     )
 
-    st.markdown(
-        '<div class="subtitle">'
-        'AI-assisted medical device risk intelligence'
-        '</div>',
-        unsafe_allow_html=True
+    st.write(
+        "MedRisk AI is a research prototype designed "
+        "to analyse medical device complaint patterns "
+        "and identify potential emerging safety risks."
     )
+
+    st.divider()
+
+    st.subheader("Key Features")
 
     st.markdown("""
-    ### What is MedRisk AI?
-
-    MedRisk AI is a prototype platform designed to analyse
-    medical device complaint patterns and identify potential
-    emerging safety risks.
-
-    ### Main capabilities
-
-    - Complaint trend analysis
-    - Machine-learning based risk prediction
-    - Complaint-to-risk matching
-    - Emerging risk detection
-    - Device-level risk monitoring
-
-    ### Technology
-
-    **Python + Pandas + Scikit-learn + Streamlit**
-
-    The current machine-learning pipeline uses a
-    **Random Forest classifier** based on complaint-related
-    features and historical trends.
+    - 📊 Complaint trend analysis
+    - 🤖 Machine-learning based risk prediction
+    - 🔗 Complaint-to-risk matching
+    - ⚠️ Emerging risk detection
+    - 📈 Device-level risk monitoring
     """)
+
+    st.divider()
+
+    st.subheader("Technology")
+
+    st.write(
+        "Python • Pandas • Scikit-learn • Streamlit"
+    )
 
     st.warning(
         "⚠️ This is a research/prototype system. "
         "The current dataset is synthetic and the system "
-        "is not validated for real clinical or regulatory "
+        "is not validated for clinical or regulatory "
         "decision-making."
     )
 
 
-# ============================================================
+# =========================================================
 # FOOTER
-# ============================================================
+# =========================================================
+
+st.divider()
 
 st.markdown(
-    """
-    <div class="footer">
-        MedRisk AI · Medical Device Risk Intelligence<br>
-        AI-assisted prototype for research and demonstration
-    </div>
-    """,
+    '<div class="footer">'
+    'MedRisk AI · Medical Device Risk Intelligence<br>'
+    'AI-assisted research prototype'
+    '</div>',
     unsafe_allow_html=True
 )
