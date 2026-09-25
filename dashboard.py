@@ -21,13 +21,17 @@ st.set_page_config(
 
 
 # =========================================================
-# CUSTOM STYLE
+# PROFESSIONAL LIGHT THEME
 # =========================================================
 
 st.markdown("""
 <style>
 
-.main {
+[data-testid="stAppViewContainer"] {
+    background-color: #f7f9fc;
+}
+
+[data-testid="stHeader"] {
     background-color: #f7f9fc;
 }
 
@@ -36,28 +40,70 @@ st.markdown("""
     padding-bottom: 3rem;
 }
 
+/* Main headings */
 h1 {
     color: #12355b !important;
 }
 
-h2, h3 {
+h2 {
     color: #12355b !important;
 }
 
+h3 {
+    color: #12355b !important;
+}
+
+/* Normal text */
+p {
+    color: #334155;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #ffffff;
+}
+
+[data-testid="stSidebar"] * {
+    color: #26374a;
+}
+
+/* Metric cards */
 [data-testid="stMetric"] {
-    background-color: white;
-    border: 1px solid #e3e8ef;
-    padding: 18px;
-    border-radius: 12px;
+    background-color: #ffffff !important;
+    border: 1px solid #dbe3ec;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0px 3px 10px rgba(0,0,0,0.05);
 }
 
-[data-testid="stTextInput"] input,
-[data-testid="stTextArea"] textarea,
-[data-testid="stSelectbox"] div,
-[data-testid="stDateInput"] input {
-    border-radius: 8px;
+/* Metric labels */
+[data-testid="stMetricLabel"] {
+    color: #64748b !important;
 }
 
+/* Metric values */
+[data-testid="stMetricValue"] {
+    color: #12355b !important;
+}
+
+/* Input labels */
+label {
+    color: #334155 !important;
+}
+
+/* Select boxes */
+[data-baseweb="select"] {
+    background-color: white !important;
+}
+
+/* Text inputs */
+input,
+textarea {
+    background-color: white !important;
+    color: #1e293b !important;
+}
+
+/* Footer */
 .footer {
     text-align: center;
     color: #7a869a;
@@ -103,10 +149,13 @@ if not all(os.path.exists(file) for file in REQUIRED_FILES):
             )
 
             if result.returncode != 0:
+
                 st.error(
                     f"Setup failed while running {script}"
                 )
+
                 st.code(result.stderr)
+
                 st.stop()
 
 
@@ -130,6 +179,7 @@ def load_data():
         emerging = pd.read_csv(
             "outputs/emerging_risk_clusters.csv"
         )
+
     except FileNotFoundError:
         emerging = pd.DataFrame()
 
@@ -193,12 +243,12 @@ if page == "🏠 Home":
 
     st.write("")
 
-    # Main button
     if st.button(
         "📝 Start Risk Assessment",
         type="primary",
         use_container_width=True
     ):
+
         st.info(
             "Select 'Report Complaint' from the sidebar "
             "to enter a device complaint."
@@ -211,21 +261,27 @@ if page == "🏠 Home":
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.markdown("### 1️⃣ Collect")
+
         st.write(
             "Record medical device complaints, "
             "dates and severity."
         )
 
     with col2:
+
         st.markdown("### 2️⃣ Analyse")
+
         st.write(
             "Analyse complaint volume, severity "
             "and historical trends."
         )
 
     with col3:
+
         st.markdown("### 3️⃣ Predict")
+
         st.write(
             "Use machine-learning based analysis "
             "to estimate device risk."
@@ -238,18 +294,21 @@ if page == "🏠 Home":
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Devices Monitored",
             len(products)
         )
 
     with col2:
+
         st.metric(
             "Complaint Records",
             len(matches)
         )
 
     with col3:
+
         st.metric(
             "Risk Records",
             len(risk_scores)
@@ -370,7 +429,8 @@ elif page == "📝 Report Complaint":
                 )
 
             st.info(
-                "Next step: connect this complaint directly "
+                "The complaint has been captured. "
+                "The next step is to connect this information "
                 "to the machine-learning prediction pipeline."
             )
 
@@ -400,15 +460,21 @@ elif page == "📊 Risk Dashboard":
 
     st.divider()
 
+    # -----------------------------------------------------
+    # METRICS
+    # -----------------------------------------------------
+
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Current Risk Score",
             f"{latest['risk_score']:.2f}"
         )
 
     with col2:
+
         st.metric(
             "Complaints",
             int(
@@ -419,6 +485,7 @@ elif page == "📊 Risk Dashboard":
         )
 
     with col3:
+
         st.metric(
             "High Severity",
             int(
@@ -428,36 +495,46 @@ elif page == "📊 Risk Dashboard":
             )
         )
 
+    # -----------------------------------------------------
+    # RISK LEVEL
+    # -----------------------------------------------------
+
     risk_score = float(
         latest["risk_score"]
     )
 
     if risk_score >= 0.70:
+
         risk_level = "HIGH"
+
+        st.error(
+            f"🔴 Current predicted risk: "
+            f"**{risk_level} ({risk_score:.2f})**"
+        )
+
     elif risk_score >= 0.40:
+
         risk_level = "MODERATE"
+
+        st.warning(
+            f"🟠 Current predicted risk: "
+            f"**{risk_level} ({risk_score:.2f})**"
+        )
+
     else:
+
         risk_level = "LOW"
+
+        st.success(
+            f"🟢 Current predicted risk: "
+            f"**{risk_level} ({risk_score:.2f})**"
+        )
 
     st.divider()
 
-    if risk_level == "HIGH":
-        st.error(
-            f"🔴 Current predicted risk: **{risk_level}** "
-            f"({risk_score:.2f})"
-        )
-
-    elif risk_level == "MODERATE":
-        st.warning(
-            f"🟠 Current predicted risk: **{risk_level}** "
-            f"({risk_score:.2f})"
-        )
-
-    else:
-        st.success(
-            f"🟢 Current predicted risk: **{risk_level}** "
-            f"({risk_score:.2f})"
-        )
+    # -----------------------------------------------------
+    # GRAPH
+    # -----------------------------------------------------
 
     st.subheader(
         "Risk Score vs Complaint Volume"
@@ -500,6 +577,10 @@ elif page == "📊 Risk Dashboard":
 
     st.divider()
 
+    # -----------------------------------------------------
+    # COMPLAINT MATCHING
+    # -----------------------------------------------------
+
     st.subheader(
         "Complaint → Known Risk Matching"
     )
@@ -519,12 +600,14 @@ elif page == "📊 Risk Dashboard":
     col1, col2 = st.columns(2)
 
     with col1:
+
         st.metric(
             "Matched to Known Risk",
             matched_count
         )
 
     with col2:
+
         st.metric(
             "Unmatched Complaints",
             unmatched_count
@@ -664,6 +747,8 @@ elif page == "ℹ️ About":
     st.write(
         "Python • Pandas • Scikit-learn • Streamlit"
     )
+
+    st.divider()
 
     st.warning(
         "⚠️ This is a research/prototype system. "
