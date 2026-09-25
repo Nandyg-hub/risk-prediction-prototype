@@ -13,6 +13,8 @@ complaint_matching.py. Run those four scripts first if the outputs/
 folder is empty.
 """
 
+import os
+import subprocess
 import pandas as pd
 import streamlit as st
 import matplotlib
@@ -20,6 +22,28 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Medical Device Risk Intelligence Prototype", layout="wide")
+
+# ---------------------------------------------------------------
+# First-run setup: if the data/outputs files don't exist yet (e.g. on a
+# fresh cloud deployment where only the .py files were uploaded), generate
+# them automatically by running the pipeline scripts in order.
+# ---------------------------------------------------------------
+os.makedirs("data", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
+
+REQUIRED_FILES = [
+    "data/complaints.csv",
+    "data/fmea_risk_items.csv",
+    "outputs/risk_scores_full.csv",
+    "outputs/complaint_matches.csv",
+]
+
+if not all(os.path.exists(f) for f in REQUIRED_FILES):
+    with st.spinner("First-time setup: generating synthetic data and running models... (about 30-60 seconds)"):
+        subprocess.run(["python", "generate_synthetic_data.py"], check=True)
+        subprocess.run(["python", "generate_fmea.py"], check=True)
+        subprocess.run(["python", "risk_prediction.py"], check=True)
+        subprocess.run(["python", "complaint_matching.py"], check=True)
 
 # ---------------------------------------------------------------
 # Load data (cached so the app stays fast when you switch products)
