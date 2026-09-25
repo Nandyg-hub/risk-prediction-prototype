@@ -14,6 +14,7 @@ folder is empty.
 """
 
 import os
+import sys
 import subprocess
 import pandas as pd
 import streamlit as st
@@ -40,10 +41,19 @@ REQUIRED_FILES = [
 
 if not all(os.path.exists(f) for f in REQUIRED_FILES):
     with st.spinner("First-time setup: generating synthetic data and running models... (about 30-60 seconds)"):
-        subprocess.run(["python", "generate_synthetic_data.py"], check=True)
-        subprocess.run(["python", "generate_fmea.py"], check=True)
-        subprocess.run(["python", "risk_prediction.py"], check=True)
-        subprocess.run(["python", "complaint_matching.py"], check=True)
+        for script in [
+            "generate_synthetic_data.py",
+            "generate_fmea.py",
+            "risk_prediction.py",
+            "complaint_matching.py",
+        ]:
+            result = subprocess.run(
+                [sys.executable, script], capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                st.error(f"Setup failed while running {script}:")
+                st.code(result.stderr)
+                st.stop()
 
 # ---------------------------------------------------------------
 # Load data (cached so the app stays fast when you switch products)
