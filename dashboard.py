@@ -1,24 +1,3 @@
-"""
-MedRisk AI
-Medical Device Risk Intelligence Platform
-Final student prototype dashboard
-
-Features:
-1. Home page
-2. Live complaint assessment
-3. Risk prediction
-4. Complaint category + severity analysis
-5. Complaint text risk analysis
-6. Possible complication explanation
-7. Risk Dashboard
-8. Emerging Risks
-9. About page
-
-NOTE:
-This is a student prototype using synthetic/demo data.
-It is NOT a clinically or regulatorily validated system.
-"""
-
 import os
 import sys
 import subprocess
@@ -27,7 +6,6 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 
 # ============================================================
 # PAGE CONFIG
@@ -40,188 +18,211 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ============================================================
+# LIGHT THEME + UI STYLING
+# ============================================================
+
+st.markdown("""
+<style>
+
+/* ---------- MAIN PAGE ---------- */
+.stApp {
+    background-color: #f7f9fc;
+    color: #12395b;
+}
+
+.main .block-container {
+    max-width: 1250px;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+
+/* ---------- HEADINGS ---------- */
+h1, h2, h3, h4 {
+    color: #123f68 !important;
+}
+
+p, label, span, div {
+    color: #234b6d;
+}
+
+/* ---------- TOP NAV ---------- */
+.navbar {
+    background: white;
+    border-bottom: 1px solid #d9e3ee;
+    padding: 14px 20px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    box-shadow: 0 2px 8px rgba(30, 70, 100, 0.06);
+}
+
+.brand {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0e3b63 !important;
+}
+
+.brand-sub {
+    color: #66809a !important;
+    font-size: 13px;
+}
+
+/* ---------- CARDS ---------- */
+.card {
+    background: white;
+    border: 1px solid #dce6f0;
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 3px 12px rgba(30, 70, 100, 0.06);
+    margin-bottom: 18px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #12436c !important;
+}
+
+.card-value {
+    font-size: 30px;
+    font-weight: 700;
+    color: #174e7d !important;
+}
+
+/* ---------- INFO BOX ---------- */
+.info-box {
+    background: #eaf4ff;
+    border-left: 5px solid #3182ce;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 15px 0;
+}
+
+/* ---------- RISK BOXES ---------- */
+.high-risk {
+    background: #ffe4e4;
+    border: 1px solid #ff9b9b;
+    border-radius: 12px;
+    padding: 18px;
+    color: #a80000 !important;
+    font-weight: 700;
+}
+
+.moderate-risk {
+    background: #fff8d9;
+    border: 1px solid #ead36b;
+    border-radius: 12px;
+    padding: 18px;
+    color: #806400 !important;
+    font-weight: 700;
+}
+
+.low-risk {
+    background: #e3f7eb;
+    border: 1px solid #8bd3a7;
+    border-radius: 12px;
+    padding: 18px;
+    color: #16733b !important;
+    font-weight: 700;
+}
+
+/* ---------- BUTTONS ---------- */
+.stButton > button {
+    width: 100%;
+    border-radius: 8px;
+    border: none;
+    background: #ff4b4b;
+    color: white !important;
+    font-weight: 600;
+    padding: 0.65rem 1rem;
+}
+
+.stButton > button:hover {
+    background: #e63e3e;
+    color: white !important;
+}
+
+/* ---------- INPUTS ---------- */
+div[data-baseweb="select"] > div,
+textarea,
+input {
+    border-radius: 8px !important;
+}
+
+/* ---------- METRICS ---------- */
+div[data-testid="stMetric"] {
+    background: white;
+    border: 1px solid #dce6f0;
+    border-radius: 12px;
+    padding: 15px;
+}
+
+/* ---------- SIDEBAR ---------- */
+section[data-testid="stSidebar"] {
+    background-color: #ffffff;
+    border-right: 1px solid #dce6f0;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #234b6d !important;
+}
+
+/* ---------- FOOTER ---------- */
+.footer {
+    text-align: center;
+    color: #8193a5 !important;
+    font-size: 12px;
+    padding-top: 30px;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================
-# GLOBAL CSS
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-
-    /* Main page spacing */
-    .block-container {
-        padding-top: 2.5rem;
-        padding-bottom: 3rem;
-        max-width: 1250px;
-    }
-
-    /* Prevent top content from getting hidden */
-    header {
-        visibility: visible;
-    }
-
-    /* Main title */
-    .main-title {
-        font-size: 42px;
-        font-weight: 800;
-        color: #123f67;
-        margin-bottom: 4px;
-    }
-
-    .subtitle {
-        font-size: 20px;
-        font-weight: 600;
-        color: #244f73;
-        margin-bottom: 8px;
-    }
-
-    .description {
-        font-size: 15px;
-        color: #526779;
-        margin-bottom: 25px;
-    }
-
-    /* Cards */
-    .info-card {
-        padding: 22px;
-        border-radius: 12px;
-        border: 1px solid #d8e2ec;
-        background: white;
-        min-height: 125px;
-    }
-
-    .card-title {
-        font-size: 14px;
-        color: #587087;
-        margin-bottom: 8px;
-    }
-
-    .card-value {
-        font-size: 30px;
-        font-weight: 700;
-        color: #173f62;
-    }
-
-    /* Risk boxes */
-    .high-risk {
-        padding: 20px;
-        border-radius: 12px;
-        background: #ffe4e4;
-        border: 2px solid #ff6b6b;
-        color: #a40000;
-        font-weight: 700;
-        font-size: 18px;
-    }
-
-    .moderate-risk {
-        padding: 20px;
-        border-radius: 12px;
-        background: #fff8cc;
-        border: 2px solid #f0c84b;
-        color: #805f00;
-        font-weight: 700;
-        font-size: 18px;
-    }
-
-    .low-risk {
-        padding: 20px;
-        border-radius: 12px;
-        background: #e3f7e9;
-        border: 2px solid #62c985;
-        color: #146b35;
-        font-weight: 700;
-        font-size: 18px;
-    }
-
-    /* Section headings */
-    .section-heading {
-        color: #123f67;
-        font-size: 25px;
-        font-weight: 700;
-        margin-top: 25px;
-        margin-bottom: 12px;
-    }
-
-    /* Button */
-    div.stButton > button {
-        width: 100%;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        padding-top: 1.5rem;
-    }
-
-    /* Hide unnecessary Streamlit decoration */
-    #MainMenu {
-        visibility: hidden;
-    }
-
-    footer {
-        visibility: hidden;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# DIRECTORIES
+# FOLDER SETUP
 # ============================================================
 
 os.makedirs("data", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-
 # ============================================================
-# OPTIONAL DATA SETUP
+# GENERATE REQUIRED FILES IF MISSING
 # ============================================================
 
-def run_script(script_name):
+required_files = [
+    "data/complaints.csv",
+    "data/fmea_risk_items.csv",
+    "outputs/risk_scores_full.csv",
+    "outputs/complaint_matches.csv"
+]
 
-    if not os.path.exists(script_name):
-        return False
+if not all(os.path.exists(x) for x in required_files):
 
-    try:
-        result = subprocess.run(
-            [sys.executable, script_name],
-            capture_output=True,
-            text=True
-        )
+    scripts = [
+        "generate_synthetic_data.py",
+        "generate_fmea.py",
+        "risk_prediction.py",
+        "complaint_matching.py"
+    ]
 
-        return result.returncode == 0
+    with st.spinner("Preparing MedRisk AI model..."):
 
-    except Exception:
-        return False
+        for script in scripts:
 
+            if not os.path.exists(script):
+                st.error(f"Required file missing: {script}")
+                st.stop()
 
-# Generate demo data only if complaint data is missing
-if not os.path.exists("data/complaints.csv"):
+            result = subprocess.run(
+                [sys.executable, script],
+                capture_output=True,
+                text=True
+            )
 
-    run_script("generate_synthetic_data.py")
-
-
-# Generate FMEA data if possible
-if not os.path.exists("data/fmea_risk_items.csv"):
-
-    run_script("generate_fmea.py")
-
-
-# Generate model outputs if possible
-if not os.path.exists("outputs/risk_scores_full.csv"):
-
-    run_script("risk_prediction.py")
-
-
-if not os.path.exists("outputs/complaint_matches.csv"):
-
-    run_script("complaint_matching.py")
-
+            if result.returncode != 0:
+                st.error(f"Error while running {script}")
+                st.code(result.stderr)
+                st.stop()
 
 # ============================================================
 # LOAD DATA
@@ -230,61 +231,39 @@ if not os.path.exists("outputs/complaint_matches.csv"):
 @st.cache_data
 def load_data():
 
-    complaints = pd.DataFrame()
-    risk_scores = pd.DataFrame()
-    matches = pd.DataFrame()
-    emerging = pd.DataFrame()
+    risk_scores = pd.read_csv(
+        "outputs/risk_scores_full.csv",
+        parse_dates=["date"]
+    )
+
+    complaints = pd.read_csv(
+        "data/complaints.csv"
+    )
+
+    matches = pd.read_csv(
+        "outputs/complaint_matches.csv"
+    )
 
     try:
-        complaints = pd.read_csv("data/complaints.csv")
+        fmea = pd.read_csv("data/fmea_risk_items.csv")
     except Exception:
-        pass
-
-    try:
-        risk_scores = pd.read_csv(
-            "outputs/risk_scores_full.csv",
-            parse_dates=["date"]
-        )
-    except Exception:
-        pass
-
-    try:
-        matches = pd.read_csv(
-            "outputs/complaint_matches.csv"
-        )
-    except Exception:
-        pass
+        fmea = pd.DataFrame()
 
     try:
         emerging = pd.read_csv(
             "outputs/emerging_risk_clusters.csv"
         )
     except Exception:
-        pass
+        emerging = pd.DataFrame()
 
-    return complaints, risk_scores, matches, emerging
-
-
-complaints, risk_scores, matches, emerging = load_data()
+    return risk_scores, complaints, matches, fmea, emerging
 
 
-# ============================================================
-# DEVICE LIST
-# ============================================================
+risk_scores, complaints, matches, fmea, emerging = load_data()
 
-if not complaints.empty and "product_id" in complaints.columns:
-
-    devices = sorted(
-        complaints["product_id"].dropna().unique().tolist()
-    )
-
-else:
-
-    devices = [
-        f"DEV-{i:03d}"
-        for i in range(1, 13)
-    ]
-
+products = sorted(
+    risk_scores["product_id"].dropna().unique()
+)
 
 # ============================================================
 # SIDEBAR NAVIGATION
@@ -294,19 +273,13 @@ with st.sidebar:
 
     st.markdown(
         """
-        <div style="
-        font-size:28px;
-        font-weight:800;
-        color:#123f67;
-        margin-bottom:4px;">
-        🏥 MedRisk AI
-        </div>
-
-        <div style="
-        font-size:13px;
-        color:#66788a;
-        margin-bottom:25px;">
-        Medical Device Risk Intelligence
+        <div style="padding:10px 5px 20px 5px;">
+            <div style="font-size:24px;font-weight:800;color:#123f68;">
+                🏥 MedRisk AI
+            </div>
+            <div style="font-size:12px;color:#71869a;">
+                Medical Device Risk Intelligence
+            </div>
         </div>
         """,
         unsafe_allow_html=True
@@ -322,528 +295,344 @@ with st.sidebar:
             "📊 Risk Dashboard",
             "⚠️ Emerging Risks",
             "ℹ️ About"
-        ],
-        index=0
+        ]
     )
 
     st.markdown("---")
 
-    st.caption(
-        "AI-assisted medical device risk monitoring"
-    )
+    st.caption("AI-assisted medical device risk monitoring")
 
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    """
+    <div class="navbar">
+        <div class="brand">🏥 MedRisk AI</div>
+        <div class="brand-sub">
+            Medical Device Risk Intelligence Platform
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ============================================================
 # HELPER FUNCTIONS
 # ============================================================
 
-def classify_risk(score):
+def get_risk_level(score):
 
     if score >= 0.70:
-        return "HIGH"
+        return "HIGH RISK", "high-risk"
 
     elif score >= 0.40:
-        return "MODERATE"
+        return "MODERATE RISK", "moderate-risk"
 
-    return "LOW"
-
-
-def get_risk_class(level):
-
-    if level == "HIGH":
-        return "high-risk"
-
-    elif level == "MODERATE":
-        return "moderate-risk"
-
-    return "low-risk"
+    return "LOW RISK", "low-risk"
 
 
-def analyse_complaint(
-    device,
-    category,
+def keyword_score(text):
+
+    text = text.lower()
+
+    high_words = [
+        "heating",
+        "overheating",
+        "smoke",
+        "fire",
+        "burn",
+        "electric shock",
+        "shock",
+        "explosion",
+        "sparking",
+        "failed during operation",
+        "stopped during operation",
+        "unexpected shutdown",
+        "wrong reading",
+        "inaccurate reading"
+    ]
+
+    medium_words = [
+        "failure",
+        "failed",
+        "error",
+        "malfunction",
+        "crack",
+        "leak",
+        "drift",
+        "unstable",
+        "intermittent",
+        "delay"
+    ]
+
+    score = 0.0
+
+    for word in high_words:
+        if word in text:
+            score += 0.35
+
+    for word in medium_words:
+        if word in text:
+            score += 0.15
+
+    return min(score, 0.60)
+
+
+def text_fmea_match(description, product_id):
+
+    if fmea.empty:
+        return 0.0, None, None
+
+    product_fmea = fmea[
+        fmea["product_id"].astype(str) == str(product_id)
+    ]
+
+    if product_fmea.empty:
+        return 0.0, None, None
+
+    try:
+
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        texts = [description] + \
+                product_fmea["description"].fillna("").tolist()
+
+        vectorizer = TfidfVectorizer(stop_words="english")
+
+        matrix = vectorizer.fit_transform(texts)
+
+        similarities = cosine_similarity(
+            matrix[0:1],
+            matrix[1:]
+        )[0]
+
+        best_index = int(np.argmax(similarities))
+
+        score = float(similarities[best_index])
+
+        risk_id = product_fmea.iloc[best_index].get(
+            "risk_id",
+            "Known risk"
+        )
+
+        risk_text = product_fmea.iloc[best_index].get(
+            "description",
+            ""
+        )
+
+        return score, risk_id, risk_text
+
+    except Exception:
+        return 0.0, None, None
+
+
+def calculate_live_risk(
+    product_id,
     severity,
+    category,
     description
 ):
 
-    """
-    Live risk assessment layer.
-
-    The historical ML score provides the baseline.
-    Immediate complaint characteristics then modify
-    the score so that serious real-time complaints
-    are not hidden by the historical average.
-    """
-
     # --------------------------------------------------------
-    # 1. Historical baseline
+    # Historical ML risk
     # --------------------------------------------------------
 
-    baseline = 0.20
+    product_history = risk_scores[
+        risk_scores["product_id"] == product_id
+    ].sort_values("date")
 
-    if not risk_scores.empty:
-
-        try:
-
-            device_data = risk_scores[
-                risk_scores["product_id"] == device
-            ]
-
-            if not device_data.empty:
-
-                baseline = float(
-                    device_data["risk_score"].iloc[-1]
-                )
-
-        except Exception:
-            baseline = 0.20
-
+    if product_history.empty:
+        historical_risk = 0.20
+    else:
+        historical_risk = float(
+            product_history.iloc[-1]["risk_score"]
+        )
 
     # --------------------------------------------------------
-    # 2. Severity contribution
+    # Severity contribution
     # --------------------------------------------------------
 
-    severity_score = severity / 5.0
+    severity_component = severity / 5.0
 
     # --------------------------------------------------------
-    # 3. Category contribution
+    # Category contribution
     # --------------------------------------------------------
 
     category_weights = {
-
-        "Battery failure": 0.85,
-
-        "Software error": 0.60,
-
-        "Mechanical defect": 0.70,
-
-        "Labeling issue": 0.40,
-
-        "Connector failure": 0.65,
-
-        "Sensor inaccuracy": 0.75,
-
-        "User error": 0.35,
-
-        "Packaging defect": 0.65
+        "Battery failure": 0.80,
+        "Software error": 0.65,
+        "Mechanical defect": 0.65,
+        "Labeling issue": 0.35,
+        "Connector failure": 0.60,
+        "Sensor inaccuracy": 0.70,
+        "User error": 0.30,
+        "Packaging defect": 0.55
     }
 
-    category_score = category_weights.get(
+    category_component = category_weights.get(
         category,
         0.50
     )
 
-
     # --------------------------------------------------------
-    # 4. Text-based warning signals
-    # --------------------------------------------------------
-
-    text = description.lower()
-
-    critical_words = [
-        "heating",
-        "overheating",
-        "burn",
-        "smoke",
-        "fire",
-        "shock",
-        "electric shock",
-        "explosion",
-        "explode",
-        "sparking",
-        "spark",
-        "shutdown",
-        "stopped working",
-        "failed during operation",
-        "injury",
-        "patient injury",
-        "error during treatment",
-        "incorrect reading",
-        "wrong reading",
-        "life threatening",
-        "life-threatening"
-    ]
-
-    warning_words = [
-        "leak",
-        "crack",
-        "damage",
-        "unstable",
-        "intermittent",
-        "malfunction",
-        "failure",
-        "inaccurate",
-        "unexpected",
-        "drift"
-    ]
-
-    critical_hits = [
-        word for word in critical_words
-        if word in text
-    ]
-
-    warning_hits = [
-        word for word in warning_words
-        if word in text
-    ]
-
-
-    # --------------------------------------------------------
-    # 5. Recent complaint volume
+    # Complaint text analysis
     # --------------------------------------------------------
 
-    recent_factor = 0.0
-
-    if not complaints.empty:
-
-        try:
-
-            device_complaints = complaints[
-                complaints["product_id"] == device
-            ]
-
-            recent_count = len(
-                device_complaints.tail(30)
-            )
-
-            if recent_count >= 15:
-                recent_factor = 0.10
-
-            elif recent_count >= 8:
-                recent_factor = 0.05
-
-        except Exception:
-            recent_factor = 0.0
-
+    text_component = keyword_score(description)
 
     # --------------------------------------------------------
-    # 6. Calculate live risk score
+    # FMEA similarity
+    # --------------------------------------------------------
+
+    fmea_score, risk_id, risk_text = text_fmea_match(
+        description,
+        product_id
+    )
+
+    # --------------------------------------------------------
+    # Combine
     # --------------------------------------------------------
 
     score = (
-
-        0.25 * baseline
-        + 0.30 * severity_score
-        + 0.20 * category_score
-        + recent_factor
+        0.30 * historical_risk
+        + 0.30 * severity_component
+        + 0.15 * category_component
+        + 0.15 * text_component
+        + 0.10 * fmea_score
     )
 
+    # Strong safety signals should push high-severity
+    # complaints into the high-risk zone for demonstration.
+    if severity >= 5 and text_component >= 0.30:
+        score = max(score, 0.85)
 
-    # Warning terms
-    if warning_hits:
-        score += 0.08
+    elif severity >= 4 and text_component >= 0.30:
+        score = max(score, 0.70)
 
+    score = min(max(score, 0.01), 0.98)
 
-    # Critical terms
-    if critical_hits:
-        score += 0.20
-
-
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # Critical complaint + severe complaint
-    # should clearly appear as HIGH risk.
-    # --------------------------------------------------------
-
-    if severity >= 5 and critical_hits:
-
-        score = max(score, 0.88)
-
-    elif severity >= 4 and critical_hits:
-
-        score = max(score, 0.78)
-
-    elif severity >= 5:
-
-        score = max(score, 0.72)
-
-
-    score = min(max(score, 0.0), 0.99)
-
-    risk_level = classify_risk(score)
-
-
-    # --------------------------------------------------------
-    # Possible complication
-    # --------------------------------------------------------
-
-    complications = {
-
-        "Battery failure":
-            "Potential overheating, unexpected shutdown, battery damage or thermal safety event.",
-
-        "Software error":
-            "Potential loss of device control, incorrect operation or interruption during use.",
-
-        "Mechanical defect":
-            "Potential component breakage, device malfunction or physical injury risk.",
-
-        "Labeling issue":
-            "Potential incorrect setup or operation caused by unclear instructions.",
-
-        "Connector failure":
-            "Potential signal interruption, loss of connectivity or device malfunction.",
-
-        "Sensor inaccuracy":
-            "Potential incorrect measurements leading to inappropriate device response or decision-making.",
-
-        "User error":
-            "Potential incorrect operation or use outside intended operating conditions.",
-
-        "Packaging defect":
-            "Potential contamination, loss of sterility or compromised device integrity."
-    }
-
-
-    complication = complications.get(
-        category,
-        "Potential device malfunction requiring further investigation."
-    )
-
-
-    # More specific complication for critical text
-    if any(
-        word in text
-        for word in [
-            "heating",
-            "overheating",
-            "burn",
-            "smoke",
-            "fire"
-        ]
-    ):
-
-        complication = (
-            "Potential thermal event: overheating may lead to "
-            "device shutdown, component damage, burns or fire-related safety concerns."
-        )
-
-
-    if "shock" in text:
-
-        complication = (
-            "Potential electrical safety event: electrical leakage or "
-            "fault may expose the user or patient to electric shock."
-        )
-
-
-    if any(
-        word in text
-        for word in [
-            "incorrect reading",
-            "wrong reading",
-            "inaccurate"
-        ]
-    ):
-
-        complication = (
-            "Potential measurement error: inaccurate device output "
-            "could affect clinical interpretation or subsequent action."
-        )
-
-
-    # --------------------------------------------------------
-    # Recommended action
-    # --------------------------------------------------------
-
-    if risk_level == "HIGH":
-
-        action = (
-            "Immediate review recommended. Verify the device condition, "
-            "investigate the failure mode and assess whether corrective "
-            "or preventive action is required."
-        )
-
-    elif risk_level == "MODERATE":
-
-        action = (
-            "Further monitoring recommended. Review similar complaints "
-            "and investigate whether the pattern is increasing."
-        )
-
-    else:
-
-        action = (
-            "Continue routine monitoring and record the complaint "
-            "for future trend analysis."
-        )
-
-
-    return {
-        "score": score,
-        "level": risk_level,
-        "complication": complication,
-        "action": action,
-        "critical_hits": critical_hits,
-        "warning_hits": warning_hits,
-        "baseline": baseline
-    }
+    return score, fmea_score, risk_id, risk_text
 
 
 # ============================================================
-# HOME PAGE
+# HOME
 # ============================================================
 
 if page == "🏠 Home":
 
-    st.markdown(
-        '<div class="main-title">MedRisk AI</div>',
-        unsafe_allow_html=True
+    st.title("MedRisk AI")
+
+    st.subheader(
+        "Medical Device Risk Intelligence Platform"
     )
 
-    st.markdown(
-        '<div class="subtitle">Medical Device Risk Intelligence Platform</div>',
-        unsafe_allow_html=True
+    st.write(
+        "Analyse medical device complaints, identify known "
+        "failure modes and detect potential emerging safety risks."
     )
 
-    st.markdown(
-        """
-        <div class="description">
-        Analyse medical device complaints, identify known failure modes
-        and detect potential emerging safety risks using AI-assisted analysis.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        "### 🔄 How MedRisk AI Works"
-    )
+    st.markdown("<br>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
 
     with c1:
-
         st.markdown(
             """
-            ### 1️⃣ Collect
-
-            Enter medical device complaint information,
-            category, severity and description.
-            """
+            <div class="card">
+                <div class="card-title">1️⃣ Collect</div>
+                <p>Enter device complaints, dates, category and severity.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
     with c2:
-
         st.markdown(
             """
-            ### 2️⃣ Analyse
-
-            Analyse complaint severity, failure category,
-            historical trends and known risks.
-            """
+            <div class="card">
+                <div class="card-title">2️⃣ Analyse</div>
+                <p>Compare complaints with known FMEA risks and historical trends.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
     with c3:
-
         st.markdown(
             """
-            ### 3️⃣ Predict
-
-            Generate an AI-assisted risk score and
-            identify potential safety concerns.
-            """
+            <div class="card">
+                <div class="card-title">3️⃣ Predict</div>
+                <p>Use machine-learning assisted analysis to estimate device risk.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-    st.markdown(
-        '<div class="section-heading">Current System Overview</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    device_count = len(devices)
+    st.subheader("Current System Overview")
 
-    complaint_count = (
-        len(complaints)
-        if not complaints.empty
-        else 0
-    )
+    total_devices = len(products)
+    total_complaints = len(complaints)
 
-    fmea_count = 0
-
-    try:
-
-        fmea = pd.read_csv(
-            "data/fmea_risk_items.csv"
-        )
-
-        fmea_count = len(fmea)
-
-    except Exception:
-        fmea_count = 0
-
+    if not fmea.empty:
+        total_fmea = len(fmea)
+    else:
+        total_fmea = 0
 
     a, b, c = st.columns(3)
 
     with a:
-
-        st.markdown(
-            f"""
-            <div class="info-card">
-            <div class="card-title">Devices Monitored</div>
-            <div class="card-value">{device_count}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.metric(
+            "Devices Monitored",
+            total_devices
         )
 
     with b:
-
-        st.markdown(
-            f"""
-            <div class="info-card">
-            <div class="card-title">Complaint Records</div>
-            <div class="card-value">{complaint_count}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.metric(
+            "Complaint Records",
+            total_complaints
         )
 
     with c:
-
-        st.markdown(
-            f"""
-            <div class="info-card">
-            <div class="card-title">Known FMEA Risks</div>
-            <div class="card-value">{fmea_count}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.metric(
+            "Known FMEA Risks",
+            total_fmea
         )
-
-    st.info(
-        "💡 Go to 'Report Complaint' to test the live AI-assisted risk assessment."
-    )
-
-
-# ============================================================
-# REPORT COMPLAINT PAGE
-# ============================================================
-
-elif page == "📝 Report Complaint":
-
-    st.markdown(
-        '<div class="main-title">Report a Device Complaint</div>',
-        unsafe_allow_html=True
-    )
 
     st.markdown(
         """
-        <div class="description">
-        Enter information about a medical device complaint to generate
-        an AI-assisted risk assessment.
+        <div class="info-box">
+        💡 Use <b>Report Complaint</b> to enter a new device complaint
+        and generate a live AI-assisted risk assessment.
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    st.markdown(
-        '<div class="section-heading">Device Information</div>',
-        unsafe_allow_html=True
+# ============================================================
+# REPORT COMPLAINT
+# ============================================================
+
+elif page == "📝 Report Complaint":
+
+    st.title("Report a Device Complaint")
+
+    st.write(
+        "Enter information about a medical device complaint "
+        "to generate an AI-assisted risk assessment."
     )
 
-    device = st.selectbox(
+    st.markdown("---")
+
+    st.subheader("Device Information")
+
+    selected_device = st.selectbox(
         "Medical Device",
-        devices
+        products
     )
 
     complaint_date = st.date_input(
@@ -851,6 +640,7 @@ elif page == "📝 Report Complaint":
         value=date.today()
     )
 
+    st.subheader("Complaint Details")
 
     categories = [
         "Battery failure",
@@ -868,7 +658,6 @@ elif page == "📝 Report Complaint":
         categories
     )
 
-
     severity = st.slider(
         "Complaint Severity",
         min_value=1,
@@ -885,261 +674,189 @@ elif page == "📝 Report Complaint":
     }
 
     st.caption(
-        f"Selected severity: {severity_names[severity]} ({severity}/5)"
+        f"Selected severity: "
+        f"**{severity_names[severity]} ({severity}/5)**"
     )
-
 
     description = st.text_area(
         "Describe the complaint",
         placeholder=(
-            "Example: Battery is heating during operation and "
+            "Example: Battery is heating during use and "
             "the device shuts down unexpectedly."
         ),
         height=130
     )
 
+    st.markdown("<br>", unsafe_allow_html=True)
 
     assess = st.button(
-        "🔎 Assess Device Risk",
-        type="primary",
+        "🔍 Assess Device Risk",
         use_container_width=True
     )
 
+    # ========================================================
+    # RISK ASSESSMENT
+    # ========================================================
 
     if assess:
 
         if not description.strip():
 
             st.warning(
-                "Please enter a complaint description."
+                "Please enter a complaint description before assessment."
             )
 
         else:
 
-            result = analyse_complaint(
-                device,
-                category,
+            score, fmea_score, risk_id, risk_text = calculate_live_risk(
+                selected_device,
                 severity,
+                category,
                 description
             )
 
+            level, css_class = get_risk_level(score)
+
             st.markdown("---")
 
-            st.markdown(
-                "## 🤖 AI-Assisted Risk Assessment"
-            )
+            st.subheader("🤖 AI-Assisted Risk Assessment")
 
+            if level == "HIGH RISK":
 
-            level = result["level"]
-            score = result["score"]
-
-
-            # ------------------------------------------------
-            # Risk message
-            # ------------------------------------------------
-
-            css_class = get_risk_class(level)
-
-
-            if level == "HIGH":
-
-                message = (
-                    f"🔴 HIGH RISK — Immediate review recommended."
+                st.markdown(
+                    f"""
+                    <div class="high-risk">
+                    🔴 HIGH RISK — Immediate review recommended.
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
-            elif level == "MODERATE":
+            elif level == "MODERATE RISK":
 
-                message = (
-                    f"🟠 MODERATE RISK — Further monitoring is recommended."
+                st.markdown(
+                    f"""
+                    <div class="moderate-risk">
+                    🟠 MODERATE RISK — Further monitoring is recommended.
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
             else:
 
-                message = (
-                    f"🟢 LOW RISK — Continue routine monitoring."
+                st.markdown(
+                    f"""
+                    <div class="low-risk">
+                    🟢 LOW RISK — Continue routine monitoring.
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
+            st.markdown("<br>", unsafe_allow_html=True)
 
-            st.markdown(
-                f"""
-                <div class="{css_class}">
-                {message}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            r1, r2, r3 = st.columns(3)
 
-
-            st.markdown("")
-
-
-            # ------------------------------------------------
-            # Metrics
-            # ------------------------------------------------
-
-            m1, m2, m3 = st.columns(3)
-
-            with m1:
-
+            with r1:
                 st.metric(
                     "Risk Score",
                     f"{score:.2f}"
                 )
 
-            with m2:
-
+            with r2:
                 st.metric(
                     "Risk Probability",
                     f"{score * 100:.1f}%"
                 )
 
-            with m3:
-
+            with r3:
                 st.metric(
                     "Severity",
                     f"{severity}/5"
                 )
 
-
             # ------------------------------------------------
-            # Possible complication
-            # ------------------------------------------------
-
-            st.markdown(
-                '<div class="section-heading">⚠️ Possible Complication</div>',
-                unsafe_allow_html=True
-            )
-
-            st.warning(
-                result["complication"]
-            )
-
-
-            # ------------------------------------------------
-            # Why the system flagged it
+            # Explanation
             # ------------------------------------------------
 
-            st.markdown(
-                '<div class="section-heading">🔍 Why was this flagged?</div>',
-                unsafe_allow_html=True
-            )
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            st.subheader("Risk Analysis")
 
             reasons = []
 
             if severity >= 4:
-
                 reasons.append(
                     f"High complaint severity ({severity}/5)"
                 )
 
-            if result["critical_hits"]:
-
+            if keyword_score(description) > 0:
                 reasons.append(
-                    "Critical safety indicators detected in complaint text: "
-                    + ", ".join(result["critical_hits"])
+                    "Safety-related terms detected in complaint description"
                 )
 
-            if result["warning_hits"]:
-
+            if fmea_score >= 0.35:
                 reasons.append(
-                    "Additional warning indicators detected: "
-                    + ", ".join(result["warning_hits"])
-                )
-
-            if category in [
-                "Battery failure",
-                "Mechanical defect",
-                "Connector failure",
-                "Sensor inaccuracy"
-            ]:
-
-                reasons.append(
-                    f"Failure category identified as: {category}"
+                    f"Complaint shows similarity to a documented FMEA risk"
                 )
 
             if not reasons:
-
                 reasons.append(
-                    "Risk assessment is based on complaint severity, "
-                    "failure category and historical device risk."
+                    "Risk estimate is mainly influenced by historical device trends"
                 )
 
             for reason in reasons:
+                st.write("• " + reason)
 
-                st.write(
-                    f"• {reason}"
+            # ------------------------------------------------
+            # Known FMEA Match
+            # ------------------------------------------------
+
+            if risk_id is not None:
+
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                st.subheader("Known Risk Traceability")
+
+                st.info(
+                    f"**Possible FMEA match:** {risk_id}\n\n"
+                    f"**Similarity:** {fmea_score:.2f}\n\n"
+                    f"**Risk description:** {risk_text}"
                 )
 
+            else:
 
-            # ------------------------------------------------
-            # Recommended action
-            # ------------------------------------------------
-
-            st.markdown(
-                '<div class="section-heading">🛠 Recommended Action</div>',
-                unsafe_allow_html=True
-            )
-
-            st.info(
-                result["action"]
-            )
-
-
-            # ------------------------------------------------
-            # Save live assessment
-            # ------------------------------------------------
-
-            assessment_row = pd.DataFrame(
-                [{
-                    "date": complaint_date,
-                    "device": device,
-                    "category": category,
-                    "severity": severity,
-                    "description": description,
-                    "risk_score": round(score, 3),
-                    "risk_level": level,
-                    "possible_complication": result["complication"]
-                }]
-            )
-
-
-            output_file = (
-                "outputs/live_assessments.csv"
-            )
-
-
-            try:
-
-                if os.path.exists(output_file):
-
-                    old = pd.read_csv(
-                        output_file
-                    )
-
-                    combined = pd.concat(
-                        [old, assessment_row],
-                        ignore_index=True
-                    )
-
-                else:
-
-                    combined = assessment_row
-
-
-                combined.to_csv(
-                    output_file,
-                    index=False
+                st.info(
+                    "No strong match was found against the documented "
+                    "FMEA risks. The complaint can be monitored as a "
+                    "potential undocumented failure mode."
                 )
 
-            except Exception:
+            # ------------------------------------------------
+            # Action
+            # ------------------------------------------------
 
-                pass
+            if level == "HIGH RISK":
 
+                st.error(
+                    "Recommended prototype action: "
+                    "Flag complaint for immediate engineering / safety review."
+                )
 
-            st.success(
-                "Risk assessment completed successfully."
-            )
+            elif level == "MODERATE RISK":
 
+                st.warning(
+                    "Recommended prototype action: "
+                    "Continue monitoring and investigate recurring patterns."
+                )
+
+            else:
+
+                st.success(
+                    "Recommended prototype action: "
+                    "Continue routine monitoring."
+                )
 
 # ============================================================
 # RISK DASHBOARD
@@ -1147,138 +864,144 @@ elif page == "📝 Report Complaint":
 
 elif page == "📊 Risk Dashboard":
 
-    st.markdown(
-        '<div class="main-title">Device Risk Dashboard</div>',
-        unsafe_allow_html=True
+    st.title("Device Risk Dashboard")
+
+    st.write(
+        "Monitor historical complaint trends and predicted device risk."
     )
 
-    st.markdown(
-        """
-        <div class="description">
-        Monitor historical complaint trends and predicted device risk.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-    selected_device = st.selectbox(
+    selected_product = st.selectbox(
         "Select a medical device",
-        devices
+        products,
+        key="dashboard_product"
     )
 
+    sub = risk_scores[
+        risk_scores["product_id"] == selected_product
+    ].sort_values("date")
 
-    if not risk_scores.empty:
+    latest = sub.iloc[-1]
 
-        sub = risk_scores[
-            risk_scores["product_id"] == selected_device
-        ].sort_values("date")
+    current_risk = float(
+        latest["risk_score"]
+    )
 
+    complaint_count = int(
+        sub["complaint_count"].tail(30).sum()
+    )
 
-        if not sub.empty:
+    high_severity = int(
+        sub["high_severity_count"].tail(30).sum()
+    )
 
-            latest = sub.iloc[-1]
+    st.markdown("---")
 
-            score = float(
-                latest["risk_score"]
-            )
+    d1, d2, d3 = st.columns(3)
 
-            complaints_30 = int(
-                sub["complaint_count"].tail(30).sum()
-            )
+    with d1:
+        st.metric(
+            "Current Risk Score",
+            f"{current_risk:.2f}"
+        )
 
-            high_sev_30 = int(
-                sub["high_severity_count"].tail(30).sum()
-            )
+    with d2:
+        st.metric(
+            "Complaints",
+            complaint_count
+        )
 
+    with d3:
+        st.metric(
+            "High Severity",
+            high_severity
+        )
 
-            c1, c2, c3 = st.columns(3)
+    level, css_class = get_risk_level(
+        current_risk
+    )
 
-            with c1:
+    if level == "HIGH RISK":
 
-                st.metric(
-                    "Current Risk Score",
-                    f"{score:.2f}"
-                )
+        st.markdown(
+            """
+            <div class="high-risk">
+            🔴 Current predicted risk: HIGH
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-            with c2:
+    elif level == "MODERATE RISK":
 
-                st.metric(
-                    "Complaints",
-                    complaints_30
-                )
-
-            with c3:
-
-                st.metric(
-                    "High Severity",
-                    high_sev_30
-                )
-
-
-            level = classify_risk(score)
-
-
-            if level == "HIGH":
-
-                st.error(
-                    f"🔴 Current predicted risk: HIGH ({score:.2f})"
-                )
-
-            elif level == "MODERATE":
-
-                st.warning(
-                    f"🟠 Current predicted risk: MODERATE ({score:.2f})"
-                )
-
-            else:
-
-                st.success(
-                    f"🟢 Current predicted risk: LOW ({score:.2f})"
-                )
-
-
-            st.markdown(
-                '<div class="section-heading">📈 Risk Score vs Complaint Volume</div>',
-                unsafe_allow_html=True
-            )
-
-
-            chart_data = sub[
-                [
-                    "date",
-                    "risk_score",
-                    "complaint_count"
-                ]
-            ].set_index("date")
-
-
-            st.line_chart(
-                chart_data[
-                    ["risk_score"]
-                ]
-            )
-
-
-            st.bar_chart(
-                chart_data[
-                    ["complaint_count"]
-                ]
-            )
-
-
-        else:
-
-            st.info(
-                "No risk data available for this device."
-            )
+        st.markdown(
+            """
+            <div class="moderate-risk">
+            🟠 Current predicted risk: MODERATE
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     else:
 
-        st.warning(
-            "Risk prediction data is not available yet."
+        st.markdown(
+            """
+            <div class="low-risk">
+            🟢 Current predicted risk: LOW
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.subheader(
+        "Risk Score vs Complaint Volume"
+    )
+
+    chart_data = sub[
+        ["date", "risk_score", "complaint_count"]
+    ].set_index("date")
+
+    st.line_chart(
+        chart_data[
+            ["risk_score"]
+        ]
+    )
+
+    st.bar_chart(
+        chart_data[
+            ["complaint_count"]
+        ]
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.subheader(
+        "Recent Device History"
+    )
+
+    recent = sub.tail(20).copy()
+
+    recent["risk_score"] = recent[
+        "risk_score"
+    ].round(3)
+
+    st.dataframe(
+        recent[
+            [
+                "date",
+                "complaint_count",
+                "high_severity_count",
+                "risk_score"
+            ]
+        ].sort_values(
+            "date",
+            ascending=False
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
 
 # ============================================================
 # EMERGING RISKS
@@ -1286,49 +1009,49 @@ elif page == "📊 Risk Dashboard":
 
 elif page == "⚠️ Emerging Risks":
 
-    st.markdown(
-        '<div class="main-title">Emerging Risks</div>',
-        unsafe_allow_html=True
+    st.title("Emerging / Undocumented Risks")
+
+    st.write(
+        "Complaints that do not strongly match documented FMEA risks "
+        "are grouped to identify possible emerging failure patterns."
     )
 
-    st.markdown(
-        """
-        <div class="description">
-        Detect groups of similar complaints that do not match
-        documented FMEA risks well.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("---")
 
-
-    if not emerging.empty:
-
-        st.success(
-            f"{len(emerging)} potential emerging-risk pattern(s) detected."
-        )
-
-
-        for _, row in emerging.iterrows():
-
-            st.warning(
-                f"""
-                **Device:** {row.get('product_id', 'Unknown')}
-
-                **Cluster:** {row.get('cluster_id', 'Unknown')}
-
-                **Similar complaints:** {row.get('num_complaints', 0)}
-
-                **Example:** {row.get('sample_text', 'N/A')}
-                """
-            )
-
-    else:
+    if emerging.empty:
 
         st.info(
             "No emerging risk clusters are currently available."
         )
 
+    else:
+
+        for product_id in products:
+
+            prod = emerging[
+                emerging["product_id"] == product_id
+            ]
+
+            if prod.empty:
+                continue
+
+            st.subheader(
+                f"Device: {product_id}"
+            )
+
+            for _, row in prod.iterrows():
+
+                st.warning(
+                    f"""
+                    **{row['num_complaints']} similar complaints detected**
+
+                    Cluster: {row['cluster_id']}
+
+                    Example complaint:
+
+                    "{row['sample_text']}"
+                    """
+                )
 
 # ============================================================
 # ABOUT
@@ -1336,54 +1059,68 @@ elif page == "⚠️ Emerging Risks":
 
 elif page == "ℹ️ About":
 
-    st.markdown(
-        '<div class="main-title">About MedRisk AI</div>',
-        unsafe_allow_html=True
+    st.title("About MedRisk AI")
+
+    st.subheader(
+        "Medical Device Risk Intelligence Prototype"
     )
 
-    st.markdown(
+    st.write(
         """
-        ### 🎯 Project Objective
-
-        MedRisk AI is a prototype platform for monitoring
-        medical device complaints and identifying potential
-        safety risks.
-
-        ### 🔄 System Workflow
-
-        **Complaint → Feature Analysis → Risk Prediction → Risk Level → Possible Complication**
-
-        ### 🧠 AI / ML Components
-
-        - Complaint trend analysis
-        - Historical risk prediction
-        - Complaint severity analysis
-        - Text-based warning detection
-        - Complaint-to-FMEA matching
-        - Emerging risk clustering
-
-        ### 📊 Data
-
-        The current prototype uses synthetic complaint data
-        for demonstration and testing.
-
-        ### ⚠️ Important Limitation
-
-        This system is a student research prototype and has
-        not been clinically or regulatorily validated.
-        It must not be used for real medical or regulatory
-        decision-making.
+        MedRisk AI is a student research prototype designed to
+        demonstrate how complaint data can be combined with
+        machine-learning based risk prediction and FMEA traceability.
         """
     )
 
+    st.markdown("---")
+
+    st.subheader("Core Pipeline")
+
+    st.write(
+        """
+        **1. Complaint Collection**
+
+        Medical device complaint information is entered into the system.
+
+        **2. Complaint Analysis**
+
+        Complaint category, severity, historical trends and text are analysed.
+
+        **3. FMEA Traceability**
+
+        The complaint is compared with documented failure modes.
+
+        **4. Risk Prediction**
+
+        Historical complaint trends are used by the prototype ML model
+        to estimate future risk.
+
+        **5. Emerging Risk Detection**
+
+        Unmatched complaints that resemble each other can be grouped
+        as possible undocumented failure patterns.
+        """
+    )
+
+    st.markdown("---")
+
+    st.info(
+        "Prototype limitation: the current dataset is synthetic and "
+        "the system has not been validated for clinical, safety or "
+        "regulatory decision-making."
+    )
 
 # ============================================================
 # FOOTER
 # ============================================================
 
-st.markdown("---")
-
-st.caption(
-    "MedRisk AI | Medical Device Risk Intelligence Prototype | "
-    "Synthetic data demonstration"
+st.markdown(
+    """
+    <div class="footer">
+        MedRisk AI • Medical Device Risk Intelligence Prototype<br>
+        Synthetic data • AI-assisted analysis • Proof of concept
+    </div>
+    """,
+    unsafe_allow_html=True
 )
