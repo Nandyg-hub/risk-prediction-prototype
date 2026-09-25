@@ -1,18 +1,21 @@
 import os
 import sys
 import subprocess
-import pandas as pd
 import numpy as np
+import pandas as pd
 import streamlit as st
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 # =========================================================
-# PAGE SETUP
+# PAGE CONFIGURATION
 # =========================================================
 
 st.set_page_config(
@@ -39,13 +42,16 @@ st.markdown("""
 }
 
 .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
+    padding-top: 3.5rem !important;
+    padding-bottom: 3rem !important;
     max-width: 1250px;
 }
 
+/* Main headings */
+
 h1 {
     color: #12355b !important;
+    font-weight: 700 !important;
 }
 
 h2 {
@@ -56,13 +62,13 @@ h3 {
     color: #12355b !important;
 }
 
+/* Normal text */
+
 p {
     color: #334155;
 }
 
-label {
-    color: #334155 !important;
-}
+/* Inputs */
 
 input,
 textarea {
@@ -74,13 +80,49 @@ textarea {
     background-color: white !important;
 }
 
+/* Navigation */
+
+.nav-title {
+    font-size: 30px;
+    font-weight: 800;
+    color: #12355b;
+    margin-bottom: 2px;
+}
+
+.nav-subtitle {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 18px;
+}
+
+/* Cards */
+
+.info-card {
+    background: white;
+    border: 1px solid #dbe3ec;
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 15px;
+}
+
+.result-card {
+    background: white;
+    border: 1px solid #dbe3ec;
+    border-radius: 14px;
+    padding: 24px;
+    margin-top: 15px;
+}
+
+/* Metric cards */
+
 [data-testid="stMetric"] {
     background-color: white !important;
     border: 1px solid #dbe3ec;
-    padding: 20px;
+    padding: 18px;
     border-radius: 14px;
-    box-shadow: 0px 3px 10px rgba(0,0,0,0.05);
 }
+
+/* Metric text */
 
 [data-testid="stMetricLabel"] {
     color: #64748b !important;
@@ -90,24 +132,20 @@ textarea {
     color: #12355b !important;
 }
 
+/* Buttons */
+
+.stButton > button {
+    border-radius: 9px;
+    font-weight: 600;
+}
+
+/* Footer */
+
 .footer {
     text-align: center;
     color: #7a869a;
     padding-top: 40px;
     font-size: 13px;
-}
-
-.nav-title {
-    color: #12355b;
-    font-size: 24px;
-    font-weight: 700;
-    margin-bottom: 2px;
-}
-
-.nav-subtitle {
-    color: #64748b;
-    font-size: 13px;
-    margin-bottom: 12px;
 }
 
 </style>
@@ -123,14 +161,14 @@ os.makedirs("outputs", exist_ok=True)
 
 
 # =========================================================
-# CREATE REQUIRED DATA IF MISSING
+# AUTOMATIC FIRST-TIME SETUP
 # =========================================================
 
 REQUIRED_FILES = [
     "data/complaints.csv",
     "data/fmea_risk_items.csv",
     "outputs/risk_scores_full.csv",
-    "outputs/complaint_matches.csv",
+    "outputs/complaint_matches.csv"
 ]
 
 if not all(os.path.exists(file) for file in REQUIRED_FILES):
@@ -141,14 +179,13 @@ if not all(os.path.exists(file) for file in REQUIRED_FILES):
             "generate_synthetic_data.py",
             "generate_fmea.py",
             "risk_prediction.py",
-            "complaint_matching.py",
+            "complaint_matching.py"
         ]
 
         for script in scripts:
 
             if not os.path.exists(script):
-                st.error(f"Required file missing: {script}")
-                st.stop()
+                continue
 
             result = subprocess.run(
                 [sys.executable, script],
@@ -157,8 +194,13 @@ if not all(os.path.exists(file) for file in REQUIRED_FILES):
             )
 
             if result.returncode != 0:
-                st.error(f"Setup failed while running {script}")
+
+                st.error(
+                    f"Setup failed while running {script}"
+                )
+
                 st.code(result.stderr)
+
                 st.stop()
 
 
@@ -174,6 +216,10 @@ def load_data():
         parse_dates=["date"]
     )
 
+    fmea = pd.read_csv(
+        "data/fmea_risk_items.csv"
+    )
+
     risk_scores = pd.read_csv(
         "outputs/risk_scores_full.csv",
         parse_dates=["date"]
@@ -184,16 +230,20 @@ def load_data():
     )
 
     try:
+
         emerging = pd.read_csv(
             "outputs/emerging_risk_clusters.csv"
         )
+
     except FileNotFoundError:
+
         emerging = pd.DataFrame()
 
-    return complaints, risk_scores, matches, emerging
+    return complaints, fmea, risk_scores, matches, emerging
 
 
-complaints, risk_scores, matches, emerging = load_data()
+complaints, fmea, risk_scores, matches, emerging = load_data()
+
 
 products = sorted(
     complaints["product_id"].unique()
@@ -218,17 +268,14 @@ FEATURE_COLS = [
 
 
 # =========================================================
-# TRAIN RANDOM FOREST MODEL
+# TRAIN RANDOM FOREST
+# Same methodology as risk_prediction.py
 # =========================================================
 
 @st.cache_resource
 def train_model(complaint_data):
 
     df = complaint_data.copy()
-
-    # -----------------------------------------------------
-    # Daily aggregation
-    # -----------------------------------------------------
 
     all_dates = pd.date_range(
         df["date"].min(),
@@ -252,10 +299,6 @@ def train_model(complaint_data):
         .reset_index()
     )
 
-    # -----------------------------------------------------
-    # Full calendar
-    # -----------------------------------------------------
-
     full_index = pd.MultiIndex.from_product(
         [product_list, all_dates],
         names=["product_id", "date"]
@@ -269,16 +312,14 @@ def train_model(complaint_data):
     )
 
     daily_full["avg_severity"] = (
-        daily_full["avg_severity"].fillna(0)
+        daily_full["avg_severity"]
+        .fillna(0)
     )
 
     daily_full["max_severity"] = (
-        daily_full["max_severity"].fillna(0)
+        daily_full["max_severity"]
+        .fillna(0)
     )
-
-    # -----------------------------------------------------
-    # Feature engineering
-    # -----------------------------------------------------
 
     daily_full = daily_full.sort_values(
         ["product_id", "date"]
@@ -286,67 +327,69 @@ def train_model(complaint_data):
 
     feature_frames = []
 
-    for pid, grp in daily_full.groupby("product_id"):
+    for pid, group in daily_full.groupby("product_id"):
 
-        grp = grp.sort_values("date").copy()
+        group = group.sort_values(
+            "date"
+        ).copy()
 
-        grp["roll7_count"] = (
-            grp["complaint_count"]
+        group["roll7_count"] = (
+            group["complaint_count"]
             .rolling(7, min_periods=1)
             .sum()
         )
 
-        grp["roll30_count"] = (
-            grp["complaint_count"]
+        group["roll30_count"] = (
+            group["complaint_count"]
             .rolling(30, min_periods=1)
             .sum()
         )
 
-        grp["roll30_high_sev"] = (
-            grp["high_severity_count"]
+        group["roll30_high_sev"] = (
+            group["high_severity_count"]
             .rolling(30, min_periods=1)
             .sum()
         )
 
-        grp["roll30_avg_severity"] = (
-            grp["avg_severity"]
+        group["roll30_avg_severity"] = (
+            group["avg_severity"]
             .rolling(30, min_periods=1)
             .mean()
         )
 
-        grp["trend_7_vs_30"] = (
-            grp["roll7_count"] * (30 / 7)
-        ) - grp["roll30_count"]
+        group["trend_7_vs_30"] = (
+            group["roll7_count"] * (30 / 7)
+        ) - group["roll30_count"]
 
-        feature_frames.append(grp)
+        feature_frames.append(group)
 
     feat = pd.concat(
         feature_frames,
         ignore_index=True
     )
 
-    # -----------------------------------------------------
-    # Future risk label
-    # -----------------------------------------------------
+    # Future event label
 
     event_frames = []
 
-    for pid, grp in feat.groupby("product_id"):
+    for pid, group in feat.groupby("product_id"):
 
-        grp = grp.sort_values("date").copy()
+        group = group.sort_values(
+            "date"
+        ).copy()
 
-        grp["high_sev_7d"] = (
-            grp["high_severity_count"]
+        group["high_sev_7d"] = (
+            group["high_severity_count"]
             .rolling(10, min_periods=1)
             .sum()
         )
 
-        grp["is_event_day"] = (
-            grp["high_sev_7d"] >= 2
+        group["is_event_day"] = (
+            group["high_sev_7d"] >= 2
         ).astype(int)
 
         reversed_event = (
-            grp["is_event_day"][::-1]
+            group["is_event_day"][::-1]
         )
 
         future_window = (
@@ -355,25 +398,23 @@ def train_model(complaint_data):
             .max()[::-1]
         )
 
-        grp["label_future_risk"] = (
+        group["label_future_risk"] = (
             future_window
             .shift(-1)
             .fillna(0)
             .astype(int)
         )
 
-        event_frames.append(grp)
+        event_frames.append(group)
 
     labeled = pd.concat(
         event_frames,
         ignore_index=True
     )
 
-    # -----------------------------------------------------
-    # Time based train split
-    # -----------------------------------------------------
-
-    split_date = labeled["date"].quantile(0.65)
+    split_date = labeled["date"].quantile(
+        0.65
+    )
 
     train_df = labeled[
         labeled["date"] <= split_date
@@ -381,10 +422,6 @@ def train_model(complaint_data):
 
     X_train = train_df[FEATURE_COLS]
     y_train = train_df["label_future_risk"]
-
-    # -----------------------------------------------------
-    # Random Forest
-    # -----------------------------------------------------
 
     model = RandomForestClassifier(
         n_estimators=200,
@@ -401,7 +438,9 @@ def train_model(complaint_data):
     return model
 
 
-model = train_model(complaints)
+model = train_model(
+    complaints
+)
 
 
 # =========================================================
@@ -421,25 +460,37 @@ def calculate_live_features(
         prediction_date
     )
 
-    # -----------------------------------------------------
-    # Selected product
-    # -----------------------------------------------------
-
     product_data = data[
         data["product_id"] == product_id
     ].copy()
 
-    # -----------------------------------------------------
-    # Add current complaint temporarily
-    # -----------------------------------------------------
+    # Add the live complaint temporarily
 
     new_complaint = pd.DataFrame({
-        "complaint_id": ["LIVE-COMPLAINT"],
-        "date": [prediction_date],
-        "product_id": [product_id],
-        "category": ["user_reported"],
-        "severity": [int(severity)],
-        "description": ["Live user complaint"]
+
+        "complaint_id": [
+            "LIVE-COMPLAINT"
+        ],
+
+        "date": [
+            prediction_date
+        ],
+
+        "product_id": [
+            product_id
+        ],
+
+        "category": [
+            "user_reported"
+        ],
+
+        "severity": [
+            int(severity)
+        ],
+
+        "description": [
+            "Live user complaint"
+        ]
     })
 
     product_data = pd.concat(
@@ -450,58 +501,58 @@ def calculate_live_features(
         ignore_index=True
     )
 
-    # -----------------------------------------------------
-    # Date range
-    # -----------------------------------------------------
-
-    start_date = product_data["date"].min()
-
-    end_date = max(
-        product_data["date"].max(),
-        prediction_date
-    )
-
     all_dates = pd.date_range(
-        start_date,
-        end_date,
+        product_data["date"].min(),
+        product_data["date"].max(),
         freq="D"
     )
-
-    # -----------------------------------------------------
-    # Daily aggregation
-    # -----------------------------------------------------
 
     daily = (
         product_data
         .groupby("date")
         .agg(
-            complaint_count=("complaint_id", "count"),
-            avg_severity=("severity", "mean"),
-            max_severity=("severity", "max"),
+            complaint_count=(
+                "complaint_id",
+                "count"
+            ),
+
+            avg_severity=(
+                "severity",
+                "mean"
+            ),
+
+            max_severity=(
+                "severity",
+                "max"
+            ),
+
             high_severity_count=(
                 "severity",
                 lambda s: (s >= 4).sum()
             )
         )
-        .reindex(all_dates, fill_value=0)
+        .reindex(
+            all_dates,
+            fill_value=0
+        )
         .reset_index()
     )
 
     daily = daily.rename(
-        columns={"index": "date"}
+        columns={
+            "index": "date"
+        }
     )
 
     daily["avg_severity"] = (
-        daily["avg_severity"].fillna(0)
+        daily["avg_severity"]
+        .fillna(0)
     )
 
     daily["max_severity"] = (
-        daily["max_severity"].fillna(0)
+        daily["max_severity"]
+        .fillna(0)
     )
-
-    # -----------------------------------------------------
-    # Rolling features
-    # -----------------------------------------------------
 
     daily["roll7_count"] = (
         daily["complaint_count"]
@@ -531,36 +582,303 @@ def calculate_live_features(
         daily["roll7_count"] * (30 / 7)
     ) - daily["roll30_count"]
 
-    # -----------------------------------------------------
-    # Get live row
-    # -----------------------------------------------------
-
     live_row = daily[
         daily["date"] == prediction_date
     ].iloc[-1]
 
-    feature_row = pd.DataFrame(
-        [live_row[FEATURE_COLS].values],
+    return pd.DataFrame(
+        [
+            live_row[FEATURE_COLS].values
+        ],
         columns=FEATURE_COLS
     )
 
-    return feature_row
+
+# =========================================================
+# LIVE COMPLAINT → FMEA MATCHING
+# =========================================================
+
+def match_live_complaint(
+    complaint_text,
+    product_id
+):
+
+    product_fmea = fmea[
+        fmea["product_id"] == product_id
+    ].copy()
+
+    if product_fmea.empty:
+
+        return {
+            "matched": False,
+            "risk_id": None,
+            "category": "Unknown",
+            "description": None,
+            "confidence": 0.0
+        }
+
+    texts = (
+        product_fmea["description"]
+        .fillna("")
+        .tolist()
+    )
+
+    corpus = [
+        complaint_text
+    ] + texts
+
+    try:
+
+        vectorizer = TfidfVectorizer(
+            stop_words="english"
+        )
+
+        matrix = vectorizer.fit_transform(
+            corpus
+        )
+
+        similarity = cosine_similarity(
+            matrix[0:1],
+            matrix[1:]
+        )[0]
+
+        best_index = int(
+            np.argmax(similarity)
+        )
+
+        best_score = float(
+            similarity[best_index]
+        )
+
+    except Exception:
+
+        best_index = 0
+        best_score = 0.0
+
+    best_row = product_fmea.iloc[
+        best_index
+    ]
+
+    return {
+        "matched": best_score >= 0.15,
+        "risk_id": best_row["risk_id"],
+        "category": best_row.get(
+            "category",
+            "Known risk"
+        ),
+        "description": best_row["description"],
+        "confidence": best_score
+    }
 
 
 # =========================================================
-# TOP NAVIGATION
+# TEXT RISK SIGNALS
 # =========================================================
 
-st.markdown("""
-<div class="nav-title">
-🏥 MedRisk AI
-</div>
+def analyse_complaint_text(text):
 
-<div class="nav-subtitle">
-Medical Device Risk Intelligence Platform
-</div>
-""", unsafe_allow_html=True)
+    text = text.lower()
 
+    critical_terms = [
+        "patient",
+        "critical",
+        "life threatening",
+        "life-threatening",
+        "injury",
+        "death",
+        "shock",
+        "overheating",
+        "fire",
+        "smoke",
+        "unexpected shutdown",
+        "repeated shutdown",
+        "stopped working",
+        "loss of function",
+        "failure during operation",
+        "failed during operation",
+        "malfunction"
+    ]
+
+    escalation_terms = [
+        "repeated",
+        "multiple",
+        "frequent",
+        "increasing",
+        "unexpected",
+        "intermittent",
+        "again",
+        "several",
+        "recurring",
+        "recently"
+    ]
+
+    critical_hits = [
+        word
+        for word in critical_terms
+        if word in text
+    ]
+
+    escalation_hits = [
+        word
+        for word in escalation_terms
+        if word in text
+    ]
+
+    return {
+        "critical_hits": critical_hits,
+        "escalation_hits": escalation_hits
+    }
+
+
+# =========================================================
+# FINAL LIVE RISK CALCULATION
+# =========================================================
+
+def calculate_final_risk(
+    ml_score,
+    severity,
+    complaint_text,
+    match_confidence,
+    live_features
+):
+
+    text_signals = analyse_complaint_text(
+        complaint_text
+    )
+
+    critical_hits = text_signals[
+        "critical_hits"
+    ]
+
+    escalation_hits = text_signals[
+        "escalation_hits"
+    ]
+
+    severity_score = (
+        (severity - 1) / 4
+    )
+
+    keyword_score = min(
+        1.0,
+        (
+            len(critical_hits) * 0.35
+            + len(escalation_hits) * 0.12
+        )
+    )
+
+    recent_activity = min(
+        1.0,
+        float(
+            live_features[
+                "roll30_count"
+            ].iloc[0]
+        ) / 10.0
+    )
+
+    trend_value = float(
+        live_features[
+            "trend_7_vs_30"
+        ].iloc[0]
+    )
+
+    trend_score = min(
+        1.0,
+        max(
+            0.0,
+            0.5 + trend_value / 10
+        )
+    )
+
+    # -----------------------------------------------------
+    # Prototype risk fusion
+    #
+    # Combines:
+    # 1. Historical Random Forest prediction
+    # 2. Complaint severity
+    # 3. Text-based safety signals
+    # 4. Recent complaint activity
+    # 5. Trend
+    #
+    # This is an AI-assisted prototype index,
+    # NOT a clinically validated risk score.
+    # -----------------------------------------------------
+
+    final_score = (
+        0.40 * ml_score
+        + 0.25 * severity_score
+        + 0.20 * keyword_score
+        + 0.10 * recent_activity
+        + 0.05 * trend_score
+    )
+
+    # Strong demo safety condition:
+    # a critical severity complaint with clear
+    # failure/safety language must not be hidden
+    # by a low historical ML score.
+
+    if (
+        severity >= 5
+        and len(critical_hits) >= 1
+    ):
+
+        final_score = max(
+            final_score,
+            0.85
+        )
+
+    elif (
+        severity >= 4
+        and len(critical_hits) >= 2
+    ):
+
+        final_score = max(
+            final_score,
+            0.75
+        )
+
+    final_score = min(
+        0.99,
+        max(
+            0.01,
+            final_score
+        )
+    )
+
+    if final_score >= 0.70:
+
+        level = "HIGH"
+
+    elif final_score >= 0.40:
+
+        level = "MODERATE"
+
+    else:
+
+        level = "LOW"
+
+    return (
+        float(final_score),
+        level,
+        critical_hits,
+        escalation_hits
+    )
+
+
+# =========================================================
+# NAVIGATION
+# =========================================================
+
+st.markdown(
+    '<div class="nav-title">🏥 MedRisk AI</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="nav-subtitle">'
+    'Medical Device Risk Intelligence Platform'
+    '</div>',
+    unsafe_allow_html=True
+)
 
 page = st.radio(
     "Navigation",
@@ -584,60 +902,58 @@ st.divider()
 
 if page == "🏠 Home":
 
-    st.title("MedRisk AI")
-
-    st.subheader(
+    st.title(
         "Medical Device Risk Intelligence Platform"
     )
 
     st.write(
-        "Analyse medical device complaints, identify known "
-        "failure modes and detect potential emerging safety risks."
+        "Analyse medical device complaints, identify "
+        "known failure modes and detect potential "
+        "emerging safety risks using AI-assisted analysis."
     )
 
     st.write("")
-
-    # -----------------------------------------------------
-    # HOW IT WORKS
-    # -----------------------------------------------------
-
-    st.subheader("How MedRisk AI Works")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
 
-        st.markdown("### 1️⃣ Collect")
+        st.markdown(
+            "### 1️⃣ Collect"
+        )
 
         st.write(
-            "Enter device complaints, dates and severity."
+            "Enter device complaints, dates "
+            "and severity."
         )
 
     with col2:
 
-        st.markdown("### 2️⃣ Analyse")
+        st.markdown(
+            "### 2️⃣ Analyse"
+        )
 
         st.write(
-            "Compare complaints with known FMEA risks "
-            "and analyse historical complaint trends."
+            "Compare complaints with known FMEA "
+            "risks and historical trends."
         )
 
     with col3:
 
-        st.markdown("### 3️⃣ Predict")
+        st.markdown(
+            "### 3️⃣ Predict"
+        )
 
         st.write(
-            "Use machine learning to estimate future "
-            "device risk."
+            "Use machine-learning and complaint "
+            "signals to estimate risk."
         )
 
     st.divider()
 
-    # -----------------------------------------------------
-    # SYSTEM OVERVIEW
-    # -----------------------------------------------------
-
-    st.subheader("Current System Overview")
+    st.subheader(
+        "Current System Overview"
+    )
 
     col1, col2, col3 = st.columns(3)
 
@@ -658,13 +974,13 @@ if page == "🏠 Home":
     with col3:
 
         st.metric(
-            "Risk Records",
-            len(risk_scores)
+            "Known FMEA Risks",
+            len(fmea)
         )
 
     st.info(
-        "💡 Use **Report Complaint** above to enter a "
-        "new complaint and generate a live AI risk assessment."
+        "💡 Go to 'Report Complaint' to test "
+        "the live AI-assisted risk assessment."
     )
 
 
@@ -674,20 +990,20 @@ if page == "🏠 Home":
 
 elif page == "📝 Report Complaint":
 
-    st.title("Report a Device Complaint")
+    st.title(
+        "Report a Device Complaint"
+    )
 
     st.write(
-        "Enter information about a medical device complaint "
-        "to generate an AI-assisted risk assessment."
+        "Enter information about a medical device "
+        "complaint to generate an AI-assisted risk assessment."
     )
 
     st.divider()
 
-    # -----------------------------------------------------
-    # DEVICE INFORMATION
-    # -----------------------------------------------------
-
-    st.subheader("Device Information")
+    st.subheader(
+        "Device Information"
+    )
 
     selected_device = st.selectbox(
         "Medical Device",
@@ -695,21 +1011,27 @@ elif page == "📝 Report Complaint":
     )
 
     complaint_date = st.date_input(
-        "Complaint Date"
+        "Complaint Date",
+        value=pd.Timestamp.today().date()
     )
 
-    # -----------------------------------------------------
-    # COMPLAINT
-    # -----------------------------------------------------
+    st.subheader(
+        "Complaint Details"
+    )
 
-    st.subheader("Complaint Details")
-
-    complaint_text = st.text_area(
-        "Describe the complaint",
-        placeholder=(
-            "Example: Device stopped working during operation..."
-        ),
-        height=150
+    complaint_category = st.selectbox(
+        "Failure / Complaint Category",
+        [
+            "Battery failure",
+            "Software error",
+            "Mechanical defect",
+            "Connector failure",
+            "Sensor inaccuracy",
+            "Packaging defect",
+            "Labelling issue",
+            "User error",
+            "Other"
+        ]
     )
 
     severity = st.slider(
@@ -724,7 +1046,7 @@ elif page == "📝 Report Complaint":
         2: "Low",
         3: "Moderate",
         4: "High",
-        5: "Very High"
+        5: "Critical"
     }
 
     st.caption(
@@ -732,271 +1054,382 @@ elif page == "📝 Report Complaint":
         f"**{severity_names[severity]} ({severity}/5)**"
     )
 
+    complaint_text = st.text_area(
+        "Describe the complaint",
+        placeholder=(
+            "Example: The device repeatedly shut down "
+            "during active operation. Battery drained "
+            "unexpectedly and the device stopped functioning."
+        ),
+        height=160
+    )
+
     st.write("")
 
     analyse = st.button(
-        "🔍 Analyse Complaint",
+        "🔍 Assess Device Risk",
         type="primary",
         use_container_width=True
     )
-
-    # =====================================================
-    # PREDICTION
-    # =====================================================
 
     if analyse:
 
         if not complaint_text.strip():
 
             st.warning(
-                "⚠️ Please enter a complaint description first."
+                "Please enter a complaint description first."
+            )
+
+            st.stop()
+
+        # -------------------------------------------------
+        # Dataset currently ends in 2025.
+        # For a future demo date, use the next available
+        # historical day for the live simulation.
+        # -------------------------------------------------
+
+        latest_data_date = complaints["date"].max()
+
+        entered_date = pd.Timestamp(
+            complaint_date
+        )
+
+        if entered_date > latest_data_date:
+
+            prediction_date = (
+                latest_data_date
+                + pd.Timedelta(days=1)
+            )
+
+            simulated = True
+
+        else:
+
+            prediction_date = entered_date
+
+            simulated = False
+
+        # -------------------------------------------------
+        # LIVE MODEL FEATURES
+        # -------------------------------------------------
+
+        live_features = calculate_live_features(
+            complaints,
+            selected_device,
+            severity,
+            prediction_date
+        )
+
+        ml_probability = model.predict_proba(
+            live_features[FEATURE_COLS]
+        )[0, 1]
+
+        ml_score = float(
+            ml_probability
+        )
+
+        # -------------------------------------------------
+        # LIVE FMEA MATCHING
+        # -------------------------------------------------
+
+        fmea_result = match_live_complaint(
+            complaint_text,
+            selected_device
+        )
+
+        # -------------------------------------------------
+        # FINAL RISK
+        # -------------------------------------------------
+
+        (
+            risk_score,
+            risk_level,
+            critical_hits,
+            escalation_hits
+        ) = calculate_final_risk(
+            ml_score,
+            severity,
+            complaint_text,
+            fmea_result["confidence"],
+            live_features
+        )
+
+        # -------------------------------------------------
+        # SAVE RESULT
+        # -------------------------------------------------
+
+        st.session_state[
+            "live_prediction"
+        ] = {
+
+            "device": selected_device,
+
+            "category": complaint_category,
+
+            "complaint": complaint_text,
+
+            "severity": severity,
+
+            "risk_score": risk_score,
+
+            "risk_level": risk_level,
+
+            "ml_score": ml_score,
+
+            "fmea_result": fmea_result,
+
+            "critical_hits": critical_hits,
+
+            "escalation_hits": escalation_hits
+        }
+
+        # -------------------------------------------------
+        # RESULT
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "🤖 AI-Assisted Risk Assessment"
+        )
+
+        if risk_level == "HIGH":
+
+            st.error(
+                "🔴 HIGH RISK — Potential emerging "
+                "device safety concern detected."
+            )
+
+        elif risk_level == "MODERATE":
+
+            st.warning(
+                "🟠 MODERATE RISK — Further monitoring "
+                "is recommended."
             )
 
         else:
 
-            latest_data_date = complaints["date"].max()
-
-            entered_date = pd.Timestamp(
-                complaint_date
+            st.success(
+                "🟢 LOW RISK — No strong escalation "
+                "signal detected in this prototype."
             )
 
-            if entered_date > latest_data_date:
+        col1, col2, col3 = st.columns(3)
 
-                prediction_date = (
-                    latest_data_date
-                    + pd.Timedelta(days=1)
-                )
+        with col1:
 
-                simulated = True
-
-            else:
-
-                prediction_date = entered_date
-
-                simulated = False
-
-            # -------------------------------------------------
-            # Calculate live features
-            # -------------------------------------------------
-
-            live_features = calculate_live_features(
-                complaints,
-                selected_device,
-                severity,
-                prediction_date
+            st.metric(
+                "Risk Score",
+                f"{risk_score:.2f}"
             )
 
-            # -------------------------------------------------
-            # AI prediction
-            # -------------------------------------------------
+        with col2:
 
-            risk_probability = model.predict_proba(
-                live_features[FEATURE_COLS]
-            )[0, 1]
-
-            risk_score = float(
-                risk_probability
+            st.metric(
+                "Risk Probability",
+                f"{risk_score * 100:.1f}%"
             )
 
-            # -------------------------------------------------
-            # Risk category
-            # -------------------------------------------------
+        with col3:
 
-            if risk_score >= 0.70:
-
-                risk_level = "HIGH"
-
-            elif risk_score >= 0.40:
-
-                risk_level = "MODERATE"
-
-            else:
-
-                risk_level = "LOW"
-
-            # -------------------------------------------------
-            # Save session result
-            # -------------------------------------------------
-
-            st.session_state["live_prediction"] = {
-                "device": selected_device,
-                "complaint": complaint_text,
-                "severity": severity,
-                "risk_score": risk_score,
-                "risk_level": risk_level
-            }
-
-            # -------------------------------------------------
-            # RESULT
-            # -------------------------------------------------
-
-            st.divider()
-
-            st.subheader(
-                "🤖 AI Risk Assessment"
+            st.metric(
+                "Severity",
+                f"{severity}/5"
             )
 
-            if risk_level == "HIGH":
+        # -------------------------------------------------
+        # FAILURE MODE
+        # -------------------------------------------------
 
-                st.error(
-                    f"🔴 Predicted Risk: **{risk_level}**"
-                )
+        st.divider()
 
-            elif risk_level == "MODERATE":
+        st.subheader(
+            "🔎 Detected Failure Mode"
+        )
 
-                st.warning(
-                    f"🟠 Predicted Risk: **{risk_level}**"
-                )
+        if fmea_result["matched"]:
 
-            else:
-
-                st.success(
-                    f"🟢 Predicted Risk: **{risk_level}**"
-                )
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-
-                st.metric(
-                    "Risk Score",
-                    f"{risk_score:.2f}"
-                )
-
-            with col2:
-
-                st.metric(
-                    "Risk Probability",
-                    f"{risk_score * 100:.1f}%"
-                )
-
-            with col3:
-
-                st.metric(
-                    "Severity",
-                    f"{severity}/5"
-                )
-
-            # -------------------------------------------------
-            # PREDICTION INDICATORS
-            # -------------------------------------------------
-
-            st.divider()
-
-            st.subheader(
-                "📌 Prediction Indicators"
-            )
-
-            high_severity = float(
-                live_features[
-                    "high_severity_count"
-                ].iloc[0]
-            )
-
-            recent_complaints = float(
-                live_features[
-                    "roll7_count"
-                ].iloc[0]
-            )
-
-            monthly_complaints = float(
-                live_features[
-                    "roll30_count"
-                ].iloc[0]
-            )
-
-            trend = float(
-                live_features[
-                    "trend_7_vs_30"
-                ].iloc[0]
-            )
-
-            indicators = []
-
-            if severity >= 4:
-
-                indicators.append(
-                    "🔴 High-severity complaint detected"
-                )
-
-            if high_severity > 0:
-
-                indicators.append(
-                    "⚠️ High-severity activity present"
-                )
-
-            if recent_complaints > 1:
-
-                indicators.append(
-                    "📈 Recent complaint activity detected"
-                )
-
-            if monthly_complaints > 3:
-
-                indicators.append(
-                    "📊 Multiple complaints in the recent 30-day window"
-                )
-
-            if trend > 0:
-
-                indicators.append(
-                    "📈 Complaint trend is accelerating"
-                )
-
-            if not indicators:
-
-                indicators.append(
-                    "🟢 No major escalation indicator detected "
-                    "in the available historical features"
-                )
-
-            for indicator in indicators:
-
-                st.write(indicator)
-
-            # -------------------------------------------------
-            # PROTOTYPE NOTICE
-            # -------------------------------------------------
-
-            if simulated:
-
-                st.info(
-                    "ℹ️ Prototype simulation: the historical "
-                    f"dataset ends on "
-                    f"{latest_data_date.strftime('%d %b %Y')}. "
-                    "The new complaint is evaluated as the next "
-                    "available observation. The original dataset "
-                    "is not modified."
-                )
-
-            else:
-
-                st.info(
-                    "ℹ️ This prediction is temporary. "
-                    "The original complaint dataset is not modified."
-                )
-
-            # -------------------------------------------------
-            # SUMMARY
-            # -------------------------------------------------
-
-            st.divider()
-
-            st.subheader(
-                "Complaint Summary"
+            st.write(
+                f"**Known Risk:** "
+                f"{fmea_result['category']}"
             )
 
             st.write(
-                f"**Device:** {selected_device}"
+                f"**FMEA Risk ID:** "
+                f"{fmea_result['risk_id']}"
             )
 
             st.write(
-                f"**Complaint:** {complaint_text}"
+                f"**Match Confidence:** "
+                f"{fmea_result['confidence']:.2f}"
+            )
+
+            with st.expander(
+                "View matched FMEA description"
+            ):
+
+                st.write(
+                    fmea_result["description"]
+                )
+
+        else:
+
+            st.warning(
+                "No strong match was found in the "
+                "documented FMEA risks."
             )
 
             st.write(
-                f"**Severity:** "
-                f"{severity_names[severity]} ({severity}/5)"
+                "This complaint can be reviewed as a "
+                "possible undocumented or emerging failure mode."
+            )
+
+        # -------------------------------------------------
+        # WHY WAS IT FLAGGED?
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "📌 Why was this complaint flagged?"
+        )
+
+        indicators = []
+
+        if severity >= 4:
+
+            indicators.append(
+                "🔴 High-severity complaint detected"
+            )
+
+        if critical_hits:
+
+            indicators.append(
+                "⚠️ Safety/failure indicators detected "
+                "in the complaint description"
+            )
+
+        if escalation_hits:
+
+            indicators.append(
+                "📈 Escalation language detected "
+                "(repeated/increasing/frequent pattern)"
+            )
+
+        roll30 = float(
+            live_features[
+                "roll30_count"
+            ].iloc[0]
+        )
+
+        if roll30 > 3:
+
+            indicators.append(
+                "📊 Multiple complaints present "
+                "in the recent historical window"
+            )
+
+        trend = float(
+            live_features[
+                "trend_7_vs_30"
+            ].iloc[0]
+        )
+
+        if trend > 0:
+
+            indicators.append(
+                "📈 Recent complaint activity "
+                "shows an accelerating trend"
+            )
+
+        if not indicators:
+
+            indicators.append(
+                "🟢 No major escalation indicator "
+                "was detected."
+            )
+
+        for item in indicators:
+
+            st.write(item)
+
+        # -------------------------------------------------
+        # RECOMMENDED ACTION
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "🛠️ Suggested Review Action"
+        )
+
+        if risk_level == "HIGH":
+
+            st.error(
+                "Review the complaint immediately, "
+                "compare with recent device complaints, "
+                "verify the failure mode and consider "
+                "technical investigation / CAPA review."
+            )
+
+        elif risk_level == "MODERATE":
+
+            st.warning(
+                "Continue monitoring complaint frequency "
+                "and severity and review whether the "
+                "pattern is increasing."
+            )
+
+        else:
+
+            st.info(
+                "Continue routine complaint monitoring "
+                "and investigate if similar complaints "
+                "begin to accumulate."
+            )
+
+        # -------------------------------------------------
+        # LIVE MODEL DETAILS
+        # -------------------------------------------------
+
+        with st.expander(
+            "View technical prediction details"
+        ):
+
+            st.write(
+                f"Historical ML score: "
+                f"**{ml_score:.3f}**"
+            )
+
+            st.write(
+                f"FMEA similarity: "
+                f"**{fmea_result['confidence']:.3f}**"
+            )
+
+            st.write(
+                f"Recent 30-day complaint count: "
+                f"**{roll30:.0f}**"
+            )
+
+            st.write(
+                f"Trend indicator: "
+                f"**{trend:.2f}**"
+            )
+
+            st.caption(
+                "The displayed risk score is a prototype "
+                "risk index combining the trained Random Forest "
+                "with explicit complaint severity and text signals. "
+                "It is not a clinically validated probability."
+            )
+
+        if simulated:
+
+            st.info(
+                "ℹ️ Demo note: the selected date is after "
+                "the synthetic dataset period, so the live "
+                "assessment uses the next available historical "
+                "day as a simulation point."
             )
 
 
@@ -1006,24 +1439,30 @@ elif page == "📝 Report Complaint":
 
 elif page == "📊 Risk Dashboard":
 
-    st.title("Device Risk Dashboard")
+    st.title(
+        "Device Risk Dashboard"
+    )
 
     st.write(
-        "Monitor complaint trends and predicted device risk."
+        "Monitor historical complaint trends and "
+        "model-predicted device risk."
     )
 
-    selected_product = st.selectbox(
+    selected_device = st.selectbox(
         "Select a medical device",
-        products
+        products,
+        key="dashboard_device"
     )
 
-    sub = risk_scores[
-        risk_scores["product_id"] == selected_product
-    ].sort_values("date")
+    sub = (
+        risk_scores[
+            risk_scores["product_id"]
+            == selected_device
+        ]
+        .sort_values("date")
+    )
 
     latest = sub.iloc[-1]
-
-    st.divider()
 
     col1, col2, col3 = st.columns(3)
 
@@ -1037,7 +1476,7 @@ elif page == "📊 Risk Dashboard":
     with col2:
 
         st.metric(
-            "Complaints",
+            "Complaint Activity",
             int(
                 sub["complaint_count"]
                 .tail(30)
@@ -1056,29 +1495,26 @@ elif page == "📊 Risk Dashboard":
             )
         )
 
-    risk_score = float(
+    risk_value = float(
         latest["risk_score"]
     )
 
-    if risk_score >= 0.70:
+    if risk_value >= 0.70:
 
         st.error(
-            f"🔴 Current predicted risk: "
-            f"**HIGH ({risk_score:.2f})**"
+            f"🔴 Current predicted risk: HIGH ({risk_value:.2f})"
         )
 
-    elif risk_score >= 0.40:
+    elif risk_value >= 0.40:
 
         st.warning(
-            f"🟠 Current predicted risk: "
-            f"**MODERATE ({risk_score:.2f})**"
+            f"🟠 Current predicted risk: MODERATE ({risk_value:.2f})"
         )
 
     else:
 
         st.success(
-            f"🟢 Current predicted risk: "
-            f"**LOW ({risk_score:.2f})**"
+            f"🟢 Current predicted risk: LOW ({risk_value:.2f})"
         )
 
     st.divider()
@@ -1094,11 +1530,12 @@ elif page == "📊 Risk Dashboard":
     ax1.plot(
         sub["date"],
         sub["risk_score"],
-        linewidth=2
+        linewidth=2,
+        label="Predicted risk score"
     )
 
     ax1.set_ylabel(
-        "Risk Score (0–1)"
+        "Risk score (0–1)"
     )
 
     ax1.set_ylim(
@@ -1111,94 +1548,45 @@ elif page == "📊 Risk Dashboard":
     ax2.bar(
         sub["date"],
         sub["complaint_count"],
-        alpha=0.25
+        alpha=0.25,
+        width=1
     )
 
     ax2.set_ylabel(
-        "Daily Complaints"
+        "Daily complaints"
     )
 
     fig.tight_layout()
 
     st.pyplot(fig)
 
-    plt.close(fig)
-
-    # -----------------------------------------------------
-    # MATCHING
-    # -----------------------------------------------------
-
     st.divider()
 
     st.subheader(
-        "Complaint → Known Risk Matching"
+        "Recent Risk Records"
     )
 
-    prod_matches = matches[
-        matches["product_id"] == selected_product
-    ]
-
-    matched_count = (
-        prod_matches["status"] == "matched"
-    ).sum()
-
-    unmatched_count = (
-        prod_matches["status"] == "unmatched"
-    ).sum()
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.metric(
-            "Matched to Known Risk",
-            matched_count
-        )
-
-    with col2:
-
-        st.metric(
-            "Unmatched Complaints",
-            unmatched_count
-        )
-
-    with st.expander(
-        "View Matching Details"
-    ):
-
-        matched_data = prod_matches[
-            prod_matches["status"] == "matched"
-        ]
-
-        if not matched_data.empty:
-
-            available_columns = [
-                col
-                for col in [
-                    "complaint_id",
-                    "complaint_text",
-                    "best_match_risk_id",
-                    "best_match_text",
-                    "confidence"
-                ]
-                if col in matched_data.columns
+    display_df = (
+        sub[
+            [
+                "date",
+                "risk_score",
+                "complaint_count",
+                "high_severity_count"
             ]
+        ]
+        .tail(15)
+        .sort_values(
+            "date",
+            ascending=False
+        )
+    )
 
-            st.dataframe(
-                matched_data[
-                    available_columns
-                ].sort_values(
-                    "confidence",
-                    ascending=False
-                ),
-                use_container_width=True
-            )
-
-        else:
-
-            st.info(
-                "No matched complaints available."
-            )
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
 
 # =========================================================
@@ -1207,62 +1595,47 @@ elif page == "📊 Risk Dashboard":
 
 elif page == "⚠️ Emerging Risks":
 
-    st.title("Emerging Risks")
+    st.title(
+        "Emerging / Unknown Risks"
+    )
 
     st.write(
-        "Potential undocumented failure patterns identified "
-        "from unmatched complaints."
+        "Complaints that do not strongly match documented "
+        "FMEA risks but show similarity to other complaints "
+        "can indicate a possible undocumented failure mode."
     )
-
-    selected_product = st.selectbox(
-        "Select a medical device",
-        products
-    )
-
-    st.divider()
 
     if emerging.empty:
 
         st.info(
-            "No emerging risk data is available."
+            "No emerging risk clusters are currently available."
         )
 
     else:
 
-        prod_emerging = emerging[
-            emerging["product_id"] == selected_product
-        ]
+        for product_id in products:
 
-        if prod_emerging.empty:
+            product_clusters = emerging[
+                emerging["product_id"]
+                == product_id
+            ]
 
-            st.success(
-                "No emerging risk clusters detected "
-                "for this device."
-            )
+            if product_clusters.empty:
 
-        else:
+                continue
 
             st.subheader(
-                "Potential Emerging Risk Patterns"
+                f"Device {product_id}"
             )
 
-            for _, row in prod_emerging.iterrows():
+            for _, row in product_clusters.iterrows():
 
                 st.warning(
                     f"**{row['num_complaints']} similar "
-                    f"unmatched complaints detected**"
+                    f"unmatched complaints detected**\n\n"
+                    f"Cluster: {row['cluster_id']}\n\n"
+                    f"Example: {row['sample_text']}"
                 )
-
-                st.write(
-                    f"Example complaint: "
-                    f"“{row['sample_text']}”"
-                )
-
-                st.caption(
-                    f"Cluster ID: {row['cluster_id']}"
-                )
-
-                st.divider()
 
 
 # =========================================================
@@ -1271,46 +1644,79 @@ elif page == "⚠️ Emerging Risks":
 
 elif page == "ℹ️ About":
 
-    st.title("About MedRisk AI")
+    st.title(
+        "About MedRisk AI"
+    )
 
     st.subheader(
-        "Medical Device Risk Intelligence"
+        "Medical Device Risk Intelligence Platform"
     )
 
     st.write(
-        "MedRisk AI is a research prototype designed "
-        "to analyse medical device complaint patterns "
-        "and identify potential emerging safety risks."
+        """
+        MedRisk AI is a student research prototype for
+        demonstrating AI-assisted post-market surveillance
+        of medical device complaints.
+        """
     )
 
     st.divider()
 
-    st.subheader("Key Features")
-
-    st.markdown("""
-    - 📊 Complaint trend analysis
-    - 🤖 Machine-learning based risk prediction
-    - 🔗 Complaint-to-risk matching
-    - ⚠️ Emerging risk detection
-    - 📈 Device-level risk monitoring
-    - 📝 Interactive complaint assessment
-    """)
-
-    st.divider()
-
-    st.subheader("Technology")
+    st.subheader(
+        "System Workflow"
+    )
 
     st.write(
-        "Python • Pandas • Scikit-learn • Streamlit"
+        """
+        **1. Complaint Collection**
+
+        A user enters the device, complaint description,
+        date and severity.
+
+        **2. Known Risk Matching**
+
+        The complaint is compared with documented FMEA
+        failure modes using TF-IDF similarity.
+
+        **3. Historical Risk Prediction**
+
+        A Random Forest model analyses complaint frequency,
+        severity and historical trends.
+
+        **4. Live Risk Assessment**
+
+        The prototype combines the historical ML score
+        with the current complaint's severity and
+        safety-related text indicators.
+
+        **5. Emerging Risk Detection**
+
+        Unmatched complaints can be grouped to identify
+        possible undocumented failure patterns.
+        """
     )
 
     st.divider()
 
-    st.warning(
-        "⚠️ This is a research/prototype system. "
-        "The current dataset is synthetic and the system "
-        "is not validated for clinical or regulatory "
-        "decision-making."
+    st.subheader(
+        "Prototype Scope"
+    )
+
+    st.info(
+        "All complaint data used by this application is "
+        "synthetic. The system is a proof-of-concept and "
+        "has not been clinically or regulatorily validated."
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Technology"
+    )
+
+    st.write(
+        "Python • Streamlit • Pandas • Scikit-learn • "
+        "Random Forest • TF-IDF • FMEA Traceability"
     )
 
 
@@ -1318,12 +1724,10 @@ elif page == "ℹ️ About":
 # FOOTER
 # =========================================================
 
-st.divider()
-
 st.markdown(
     '<div class="footer">'
-    'MedRisk AI · Medical Device Risk Intelligence<br>'
-    'AI-assisted research prototype'
+    'MedRisk AI • Student Research Prototype • '
+    'Synthetic Data • Not for Clinical Decision-Making'
     '</div>',
     unsafe_allow_html=True
 )
