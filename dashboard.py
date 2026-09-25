@@ -4,6 +4,7 @@ import subprocess
 import pandas as pd
 import numpy as np
 import streamlit as st
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -39,7 +40,7 @@ st.markdown("""
 }
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 1.5rem;
     padding-bottom: 3rem;
 }
 
@@ -87,14 +88,19 @@ label {
     color: #334155 !important;
 }
 
-[data-baseweb="select"] {
-    background-color: white !important;
-}
-
 input,
 textarea {
     background-color: white !important;
     color: #1e293b !important;
+}
+
+.top-nav {
+    background: white;
+    border: 1px solid #dbe3ec;
+    border-radius: 14px;
+    padding: 10px 15px;
+    margin-bottom: 25px;
+    box-shadow: 0px 2px 8px rgba(0,0,0,0.04);
 }
 
 .footer {
@@ -135,7 +141,7 @@ if not all(os.path.exists(file) for file in REQUIRED_FILES):
             "generate_synthetic_data.py",
             "generate_fmea.py",
             "risk_prediction.py",
-            "complaint_matching.py",
+            "complaint_matching.py"
         ]:
 
             result = subprocess.run(
@@ -156,11 +162,11 @@ if not all(os.path.exists(file) for file in REQUIRED_FILES):
 
 
 # =========================================================
-# LOAD ORIGINAL DATA
+# LOAD DATA
 # =========================================================
 
 @st.cache_data
-def load_original_data():
+def load_data():
 
     complaints = pd.read_csv(
         "data/complaints.csv",
@@ -177,16 +183,20 @@ def load_original_data():
     )
 
     try:
+
         emerging = pd.read_csv(
             "outputs/emerging_risk_clusters.csv"
         )
+
     except FileNotFoundError:
+
         emerging = pd.DataFrame()
 
     return complaints, risk_scores, matches, emerging
 
 
-complaints, risk_scores, matches, emerging = load_original_data()
+complaints, risk_scores, matches, emerging = load_data()
+
 
 products = sorted(
     complaints["product_id"].unique()
@@ -194,7 +204,7 @@ products = sorted(
 
 
 # =========================================================
-# MODEL FEATURE DEFINITIONS
+# MODEL FEATURES
 # =========================================================
 
 FEATURE_COLS = [
@@ -211,18 +221,13 @@ FEATURE_COLS = [
 
 
 # =========================================================
-# TRAIN THE SAME RANDOM FOREST USED IN
-# risk_prediction.py
+# TRAIN RANDOM FOREST MODEL
 # =========================================================
 
 @st.cache_resource
 def train_model(complaint_data):
 
     df = complaint_data.copy()
-
-    # -----------------------------------------------------
-    # Daily aggregation
-    # -----------------------------------------------------
 
     all_dates = pd.date_range(
         df["date"].min(),
@@ -233,11 +238,22 @@ def train_model(complaint_data):
     product_list = df["product_id"].unique()
 
     daily = (
-        df.groupby(["product_id", "date"])
+        df.groupby(
+            ["product_id", "date"]
+        )
         .agg(
-            complaint_count=("complaint_id", "count"),
-            avg_severity=("severity", "mean"),
-            max_severity=("severity", "max"),
+            complaint_count=(
+                "complaint_id",
+                "count"
+            ),
+            avg_severity=(
+                "severity",
+                "mean"
+            ),
+            max_severity=(
+                "severity",
+                "max"
+            ),
             high_severity_count=(
                 "severity",
                 lambda s: (s >= 4).sum()
@@ -246,10 +262,6 @@ def train_model(complaint_data):
         .reset_index()
     )
 
-    # -----------------------------------------------------
-    # Full calendar
-    # -----------------------------------------------------
-
     full_index = pd.MultiIndex.from_product(
         [product_list, all_dates],
         names=["product_id", "date"]
@@ -257,8 +269,13 @@ def train_model(complaint_data):
 
     daily_full = (
         daily
-        .set_index(["product_id", "date"])
-        .reindex(full_index, fill_value=0)
+        .set_index(
+            ["product_id", "date"]
+        )
+        .reindex(
+            full_index,
+            fill_value=0
+        )
         .reset_index()
     )
 
@@ -272,41 +289,53 @@ def train_model(complaint_data):
         .fillna(0)
     )
 
-    # -----------------------------------------------------
-    # Same feature engineering as original model
-    # -----------------------------------------------------
-
     daily_full = daily_full.sort_values(
         ["product_id", "date"]
     )
 
     feature_frames = []
 
-    for pid, grp in daily_full.groupby("product_id"):
+    for pid, grp in daily_full.groupby(
+        "product_id"
+    ):
 
-        grp = grp.sort_values("date").copy()
+        grp = grp.sort_values(
+            "date"
+        ).copy()
 
         grp["roll7_count"] = (
             grp["complaint_count"]
-            .rolling(7, min_periods=1)
+            .rolling(
+                7,
+                min_periods=1
+            )
             .sum()
         )
 
         grp["roll30_count"] = (
             grp["complaint_count"]
-            .rolling(30, min_periods=1)
+            .rolling(
+                30,
+                min_periods=1
+            )
             .sum()
         )
 
         grp["roll30_high_sev"] = (
             grp["high_severity_count"]
-            .rolling(30, min_periods=1)
+            .rolling(
+                30,
+                min_periods=1
+            )
             .sum()
         )
 
         grp["roll30_avg_severity"] = (
             grp["avg_severity"]
-            .rolling(30, min_periods=1)
+            .rolling(
+                30,
+                min_periods=1
+            )
             .mean()
         )
 
@@ -321,19 +350,22 @@ def train_model(complaint_data):
         ignore_index=True
     )
 
-    # -----------------------------------------------------
-    # Same future-risk label as original model
-    # -----------------------------------------------------
-
     event_frames = []
 
-    for pid, grp in feat.groupby("product_id"):
+    for pid, grp in feat.groupby(
+        "product_id"
+    ):
 
-        grp = grp.sort_values("date").copy()
+        grp = grp.sort_values(
+            "date"
+        ).copy()
 
         grp["high_sev_7d"] = (
             grp["high_severity_count"]
-            .rolling(10, min_periods=1)
+            .rolling(
+                10,
+                min_periods=1
+            )
             .sum()
         )
 
@@ -347,7 +379,10 @@ def train_model(complaint_data):
 
         future_window = (
             reversed_event
-            .rolling(30, min_periods=1)
+            .rolling(
+                30,
+                min_periods=1
+            )
             .max()[::-1]
         )
 
@@ -365,23 +400,21 @@ def train_model(complaint_data):
         ignore_index=True
     )
 
-    # -----------------------------------------------------
-    # Same time split
-    # -----------------------------------------------------
-
-    split_date = labeled["date"].quantile(0.65)
+    split_date = labeled["date"].quantile(
+        0.65
+    )
 
     train_df = labeled[
         labeled["date"] <= split_date
     ]
 
-    X_train = train_df[FEATURE_COLS]
+    X_train = train_df[
+        FEATURE_COLS
+    ]
 
-    y_train = train_df["label_future_risk"]
-
-    # -----------------------------------------------------
-    # Same Random Forest
-    # -----------------------------------------------------
+    y_train = train_df[
+        "label_future_risk"
+    ]
 
     model = RandomForestClassifier(
         n_estimators=200,
@@ -398,11 +431,13 @@ def train_model(complaint_data):
     return model
 
 
-model = train_model(complaints)
+model = train_model(
+    complaints
+)
 
 
 # =========================================================
-# FUNCTION: BUILD FEATURES FOR A NEW COMPLAINT
+# LIVE FEATURE CALCULATION
 # =========================================================
 
 def calculate_live_features(
@@ -418,25 +453,29 @@ def calculate_live_features(
         prediction_date
     )
 
-    # -----------------------------------------------------
-    # Use only the selected product
-    # -----------------------------------------------------
-
     product_data = data[
         data["product_id"] == product_id
     ].copy()
 
-    # -----------------------------------------------------
-    # Add the new complaint TEMPORARILY
-    # -----------------------------------------------------
-
     new_complaint = pd.DataFrame({
-        "complaint_id": ["LIVE-COMPLAINT"],
-        "date": [prediction_date],
-        "product_id": [product_id],
-        "category": ["user_reported"],
-        "severity": [int(severity)],
-        "description": ["Live user complaint"]
+        "complaint_id": [
+            "LIVE-COMPLAINT"
+        ],
+        "date": [
+            prediction_date
+        ],
+        "product_id": [
+            product_id
+        ],
+        "category": [
+            "user_reported"
+        ],
+        "severity": [
+            int(severity)
+        ],
+        "description": [
+            "Live user complaint"
+        ]
     })
 
     product_data = pd.concat(
@@ -446,10 +485,6 @@ def calculate_live_features(
         ],
         ignore_index=True
     )
-
-    # -----------------------------------------------------
-    # Create date range
-    # -----------------------------------------------------
 
     start_date = product_data["date"].min()
 
@@ -464,28 +499,38 @@ def calculate_live_features(
         freq="D"
     )
 
-    # -----------------------------------------------------
-    # Daily aggregation
-    # -----------------------------------------------------
-
     daily = (
         product_data
         .groupby("date")
         .agg(
-            complaint_count=("complaint_id", "count"),
-            avg_severity=("severity", "mean"),
-            max_severity=("severity", "max"),
+            complaint_count=(
+                "complaint_id",
+                "count"
+            ),
+            avg_severity=(
+                "severity",
+                "mean"
+            ),
+            max_severity=(
+                "severity",
+                "max"
+            ),
             high_severity_count=(
                 "severity",
                 lambda s: (s >= 4).sum()
             )
         )
-        .reindex(all_dates, fill_value=0)
+        .reindex(
+            all_dates,
+            fill_value=0
+        )
         .reset_index()
     )
 
     daily = daily.rename(
-        columns={"index": "date"}
+        columns={
+            "index": "date"
+        }
     )
 
     daily["avg_severity"] = (
@@ -498,31 +543,39 @@ def calculate_live_features(
         .fillna(0)
     )
 
-    # -----------------------------------------------------
-    # Same rolling features
-    # -----------------------------------------------------
-
     daily["roll7_count"] = (
         daily["complaint_count"]
-        .rolling(7, min_periods=1)
+        .rolling(
+            7,
+            min_periods=1
+        )
         .sum()
     )
 
     daily["roll30_count"] = (
         daily["complaint_count"]
-        .rolling(30, min_periods=1)
+        .rolling(
+            30,
+            min_periods=1
+        )
         .sum()
     )
 
     daily["roll30_high_sev"] = (
         daily["high_severity_count"]
-        .rolling(30, min_periods=1)
+        .rolling(
+            30,
+            min_periods=1
+        )
         .sum()
     )
 
     daily["roll30_avg_severity"] = (
         daily["avg_severity"]
-        .rolling(30, min_periods=1)
+        .rolling(
+            30,
+            min_periods=1
+        )
         .mean()
     )
 
@@ -530,16 +583,16 @@ def calculate_live_features(
         daily["roll7_count"] * (30 / 7)
     ) - daily["roll30_count"]
 
-    # -----------------------------------------------------
-    # Get the new complaint's feature row
-    # -----------------------------------------------------
-
     live_row = daily[
         daily["date"] == prediction_date
     ].iloc[-1]
 
     feature_row = pd.DataFrame(
-        [live_row[FEATURE_COLS].values],
+        [
+            live_row[
+                FEATURE_COLS
+            ].values
+        ],
         columns=FEATURE_COLS
     )
 
@@ -547,8 +600,21 @@ def calculate_live_features(
 
 
 # =========================================================
-# SIDEBAR
+# NAVIGATION
 # =========================================================
+
+PAGES = [
+    "🏠 Home",
+    "📝 Report Complaint",
+    "📊 Risk Dashboard",
+    "⚠️ Emerging Risks",
+    "ℹ️ About"
+]
+
+
+# ---------------------------------------------------------
+# SIDEBAR
+# ---------------------------------------------------------
 
 st.sidebar.title("🏥 MedRisk AI")
 
@@ -558,15 +624,10 @@ st.sidebar.caption(
 
 st.sidebar.divider()
 
-page = st.sidebar.radio(
+sidebar_page = st.sidebar.radio(
     "Navigation",
-    [
-        "🏠 Home",
-        "📝 Report Complaint",
-        "📊 Risk Dashboard",
-        "⚠️ Emerging Risks",
-        "ℹ️ About"
-    ]
+    PAGES,
+    key="sidebar_navigation"
 )
 
 st.sidebar.divider()
@@ -574,6 +635,34 @@ st.sidebar.divider()
 st.sidebar.caption(
     "AI-assisted medical device risk monitoring"
 )
+
+
+# ---------------------------------------------------------
+# TOP NAVIGATION
+# ---------------------------------------------------------
+
+st.markdown(
+    '<div class="top-nav">'
+    '<b>MedRisk AI</b> &nbsp; | &nbsp; '
+    'Medical Device Risk Intelligence Platform'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+top_page = st.radio(
+    "Main Navigation",
+    PAGES,
+    horizontal=True,
+    key="top_navigation",
+    label_visibility="collapsed"
+)
+
+
+# =========================================================
+# USE TOP NAVIGATION
+# =========================================================
+
+page = top_page
 
 
 # =========================================================
@@ -589,9 +678,9 @@ if page == "🏠 Home":
     )
 
     st.write(
-        "Monitor medical device complaints, analyse risk "
-        "trends and identify potential emerging safety "
-        "concerns using AI-assisted analysis."
+        "Monitor medical device complaints, analyse "
+        "risk trends and identify potential emerging "
+        "safety concerns using AI-assisted analysis."
     )
 
     st.write("")
@@ -603,19 +692,23 @@ if page == "🏠 Home":
     ):
 
         st.info(
-            "Select 'Report Complaint' from the sidebar "
-            "to enter a device complaint."
+            "Use the navigation above and select "
+            "'Report Complaint' to enter a complaint."
         )
 
     st.divider()
 
-    st.subheader("How MedRisk AI Works")
+    st.subheader(
+        "How MedRisk AI Works"
+    )
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
 
-        st.markdown("### 1️⃣ Collect")
+        st.markdown(
+            "### 1️⃣ Collect"
+        )
 
         st.write(
             "Record medical device complaints, "
@@ -624,7 +717,9 @@ if page == "🏠 Home":
 
     with col2:
 
-        st.markdown("### 2️⃣ Analyse")
+        st.markdown(
+            "### 2️⃣ Analyse"
+        )
 
         st.write(
             "Analyse complaint volume, severity "
@@ -633,7 +728,9 @@ if page == "🏠 Home":
 
     with col3:
 
-        st.markdown("### 3️⃣ Predict")
+        st.markdown(
+            "### 3️⃣ Predict"
+        )
 
         st.write(
             "Use machine-learning based analysis "
@@ -642,31 +739,37 @@ if page == "🏠 Home":
 
     st.divider()
 
-    st.subheader("Current System Overview")
+    st.subheader(
+        "Current System Overview"
+    )
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Devices Monitored",
             len(products)
         )
 
     with col2:
+
         st.metric(
             "Complaint Records",
-            len(matches)
+            len(complaints)
         )
 
     with col3:
+
         st.metric(
             "Risk Records",
             len(risk_scores)
         )
 
     st.info(
-        "💡 Use the sidebar to report a complaint or "
-        "explore the device risk dashboard."
+        "💡 Select 'Report Complaint' to enter "
+        "a complaint and generate an AI-assisted "
+        "risk assessment."
     )
 
 
@@ -676,7 +779,9 @@ if page == "🏠 Home":
 
 elif page == "📝 Report Complaint":
 
-    st.title("Report a Device Complaint")
+    st.title(
+        "Report a Device Complaint"
+    )
 
     st.write(
         "Enter information about a medical device complaint."
@@ -684,7 +789,9 @@ elif page == "📝 Report Complaint":
 
     st.divider()
 
-    st.subheader("Device Information")
+    st.subheader(
+        "Device Information"
+    )
 
     selected_device = st.selectbox(
         "Medical Device",
@@ -695,12 +802,15 @@ elif page == "📝 Report Complaint":
         "Complaint Date"
     )
 
-    st.subheader("Complaint Details")
+    st.subheader(
+        "Complaint Details"
+    )
 
     complaint_text = st.text_area(
         "Describe the complaint",
         placeholder=(
-            "Example: Device stopped working during operation..."
+            "Example: Device stopped working "
+            "during operation..."
         ),
         height=150
     )
@@ -722,7 +832,8 @@ elif page == "📝 Report Complaint":
 
     st.caption(
         f"Selected severity: "
-        f"**{severity_names[severity]} ({severity}/5)**"
+        f"**{severity_names[severity]} "
+        f"({severity}/5)**"
     )
 
     st.write("")
@@ -742,13 +853,6 @@ elif page == "📝 Report Complaint":
             )
 
         else:
-
-            # -------------------------------------------------
-            # IMPORTANT:
-            # The synthetic dataset currently ends in 2025.
-            # If user enters a later date, use the next
-            # available day after the historical dataset.
-            # -------------------------------------------------
 
             latest_data_date = complaints["date"].max()
 
@@ -771,20 +875,12 @@ elif page == "📝 Report Complaint":
 
                 simulated = False
 
-            # -------------------------------------------------
-            # Calculate the SAME 9 model features
-            # -------------------------------------------------
-
             live_features = calculate_live_features(
                 complaints,
                 selected_device,
                 severity,
                 prediction_date
             )
-
-            # -------------------------------------------------
-            # Random Forest prediction
-            # -------------------------------------------------
 
             risk_probability = model.predict_proba(
                 live_features[FEATURE_COLS]
@@ -793,10 +889,6 @@ elif page == "📝 Report Complaint":
             risk_score = float(
                 risk_probability
             )
-
-            # -------------------------------------------------
-            # Risk category
-            # -------------------------------------------------
 
             if risk_score >= 0.70:
 
@@ -811,10 +903,12 @@ elif page == "📝 Report Complaint":
                 risk_level = "LOW"
 
             # -------------------------------------------------
-            # Store result temporarily
+            # SAVE RESULT
             # -------------------------------------------------
 
-            st.session_state["live_prediction"] = {
+            st.session_state[
+                "live_prediction"
+            ] = {
                 "device": selected_device,
                 "complaint": complaint_text,
                 "severity": severity,
@@ -877,7 +971,7 @@ elif page == "📝 Report Complaint":
                 )
 
             # -------------------------------------------------
-            # WHY?
+            # PREDICTION INDICATORS
             # -------------------------------------------------
 
             st.divider()
@@ -886,28 +980,28 @@ elif page == "📝 Report Complaint":
                 "📌 Prediction Indicators"
             )
 
-            f1 = float(
-                live_features["complaint_count"].iloc[0]
+            high_severity_count = float(
+                live_features[
+                    "high_severity_count"
+                ].iloc[0]
             )
 
-            f2 = float(
-                live_features["avg_severity"].iloc[0]
+            recent_count = float(
+                live_features[
+                    "roll7_count"
+                ].iloc[0]
             )
 
-            f3 = float(
-                live_features["high_severity_count"].iloc[0]
+            monthly_count = float(
+                live_features[
+                    "roll30_count"
+                ].iloc[0]
             )
 
-            f4 = float(
-                live_features["roll7_count"].iloc[0]
-            )
-
-            f5 = float(
-                live_features["roll30_count"].iloc[0]
-            )
-
-            f6 = float(
-                live_features["trend_7_vs_30"].iloc[0]
+            trend = float(
+                live_features[
+                    "trend_7_vs_30"
+                ].iloc[0]
             )
 
             indicators = []
@@ -918,25 +1012,26 @@ elif page == "📝 Report Complaint":
                     "🔴 High-severity complaint detected"
                 )
 
-            if f3 > 0:
+            if high_severity_count > 0:
 
                 indicators.append(
                     "⚠️ High-severity activity present"
                 )
 
-            if f4 > 1:
+            if recent_count > 1:
 
                 indicators.append(
                     "📈 Recent complaint activity detected"
                 )
 
-            if f5 > 3:
+            if monthly_count > 3:
 
                 indicators.append(
-                    "📊 Multiple complaints in the recent 30-day window"
+                    "📊 Multiple complaints in the "
+                    "recent 30-day window"
                 )
 
-            if f6 > 0:
+            if trend > 0:
 
                 indicators.append(
                     "📈 Complaint trend is accelerating"
@@ -945,8 +1040,9 @@ elif page == "📝 Report Complaint":
             if not indicators:
 
                 indicators.append(
-                    "🟢 No major escalation indicator detected "
-                    "in the available historical features"
+                    "🟢 No major escalation indicator "
+                    "detected in the available "
+                    "historical features"
                 )
 
             for indicator in indicators:
@@ -954,7 +1050,7 @@ elif page == "📝 Report Complaint":
                 st.write(indicator)
 
             # -------------------------------------------------
-            # TEMPORARY / PROTOTYPE NOTICE
+            # PROTOTYPE NOTICE
             # -------------------------------------------------
 
             if simulated:
@@ -963,17 +1059,17 @@ elif page == "📝 Report Complaint":
                     "ℹ️ Prototype simulation: the current "
                     "synthetic dataset ends on "
                     f"{latest_data_date.strftime('%d %b %Y')}. "
-                    "Your new complaint was therefore evaluated "
-                    "as the next available observation after "
-                    "the historical dataset. The original data "
-                    "was not modified."
+                    "Your complaint was therefore evaluated "
+                    "using the next available observation. "
+                    "The original dataset was not modified."
                 )
 
             else:
 
                 st.info(
                     "ℹ️ This prediction is temporary. "
-                    "The original complaint dataset was not modified."
+                    "The original complaint dataset "
+                    "was not modified."
                 )
 
             # -------------------------------------------------
@@ -996,7 +1092,8 @@ elif page == "📝 Report Complaint":
 
             st.write(
                 f"**Severity:** "
-                f"{severity_names[severity]} ({severity}/5)"
+                f"{severity_names[severity]} "
+                f"({severity}/5)"
             )
 
 
@@ -1006,7 +1103,9 @@ elif page == "📝 Report Complaint":
 
 elif page == "📊 Risk Dashboard":
 
-    st.title("Device Risk Dashboard")
+    st.title(
+        "Device Risk Dashboard"
+    )
 
     st.write(
         "Monitor complaint trends and predicted device risk."
@@ -1018,7 +1117,8 @@ elif page == "📊 Risk Dashboard":
     )
 
     sub = risk_scores[
-        risk_scores["product_id"] == selected_product
+        risk_scores["product_id"]
+        == selected_product
     ].sort_values("date")
 
     latest = sub.iloc[-1]
@@ -1039,7 +1139,9 @@ elif page == "📊 Risk Dashboard":
         st.metric(
             "Complaints",
             int(
-                sub["complaint_count"]
+                sub[
+                    "complaint_count"
+                ]
                 .tail(30)
                 .sum()
             )
@@ -1050,7 +1152,9 @@ elif page == "📊 Risk Dashboard":
         st.metric(
             "High Severity",
             int(
-                sub["high_severity_count"]
+                sub[
+                    "high_severity_count"
+                ]
                 .tail(30)
                 .sum()
             )
@@ -1078,7 +1182,7 @@ elif page == "📊 Risk Dashboard":
 
         st.success(
             f"🟢 Current predicted risk: "
-            f"**LOW ({risk_score:.2f})"
+            f"**LOW ({risk_score:.2f})**"
         )
 
     st.divider()
@@ -1129,15 +1233,18 @@ elif page == "📊 Risk Dashboard":
     )
 
     prod_matches = matches[
-        matches["product_id"] == selected_product
+        matches["product_id"]
+        == selected_product
     ]
 
     matched_count = (
-        prod_matches["status"] == "matched"
+        prod_matches["status"]
+        == "matched"
     ).sum()
 
     unmatched_count = (
-        prod_matches["status"] == "unmatched"
+        prod_matches["status"]
+        == "unmatched"
     ).sum()
 
     col1, col2 = st.columns(2)
@@ -1161,13 +1268,15 @@ elif page == "📊 Risk Dashboard":
     ):
 
         matched_data = prod_matches[
-            prod_matches["status"] == "matched"
+            prod_matches["status"]
+            == "matched"
         ]
 
         if not matched_data.empty:
 
             available_columns = [
-                col for col in [
+                col
+                for col in [
                     "complaint_id",
                     "complaint_text",
                     "best_match_risk_id",
@@ -1178,8 +1287,9 @@ elif page == "📊 Risk Dashboard":
             ]
 
             st.dataframe(
-                matched_data[available_columns]
-                .sort_values(
+                matched_data[
+                    available_columns
+                ].sort_values(
                     "confidence",
                     ascending=False
                 ),
@@ -1199,11 +1309,13 @@ elif page == "📊 Risk Dashboard":
 
 elif page == "⚠️ Emerging Risks":
 
-    st.title("Emerging Risks")
+    st.title(
+        "Emerging Risks"
+    )
 
     st.write(
-        "Potential undocumented failure patterns identified "
-        "from unmatched complaints."
+        "Potential undocumented failure patterns "
+        "identified from unmatched complaints."
     )
 
     selected_product = st.selectbox(
@@ -1222,7 +1334,8 @@ elif page == "⚠️ Emerging Risks":
     else:
 
         prod_emerging = emerging[
-            emerging["product_id"] == selected_product
+            emerging["product_id"]
+            == selected_product
         ]
 
         if prod_emerging.empty:
@@ -1241,8 +1354,9 @@ elif page == "⚠️ Emerging Risks":
             for _, row in prod_emerging.iterrows():
 
                 st.warning(
-                    f"**{row['num_complaints']} similar "
-                    f"unmatched complaints detected**"
+                    f"**{row['num_complaints']} "
+                    f"similar unmatched complaints "
+                    f"detected**"
                 )
 
                 st.write(
@@ -1263,7 +1377,9 @@ elif page == "⚠️ Emerging Risks":
 
 elif page == "ℹ️ About":
 
-    st.title("About MedRisk AI")
+    st.title(
+        "About MedRisk AI"
+    )
 
     st.subheader(
         "Medical Device Risk Intelligence"
@@ -1277,7 +1393,9 @@ elif page == "ℹ️ About":
 
     st.divider()
 
-    st.subheader("Key Features")
+    st.subheader(
+        "Key Features"
+    )
 
     st.markdown("""
     - 📊 Complaint trend analysis
@@ -1290,7 +1408,9 @@ elif page == "ℹ️ About":
 
     st.divider()
 
-    st.subheader("Technology")
+    st.subheader(
+        "Technology"
+    )
 
     st.write(
         "Python • Pandas • Scikit-learn • Streamlit"
@@ -1300,9 +1420,9 @@ elif page == "ℹ️ About":
 
     st.warning(
         "⚠️ This is a research/prototype system. "
-        "The current dataset is synthetic and the system "
-        "is not validated for clinical or regulatory "
-        "decision-making."
+        "The current dataset is synthetic and the "
+        "system is not validated for clinical or "
+        "regulatory decision-making."
     )
 
 
